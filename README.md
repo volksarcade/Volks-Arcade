@@ -1,0 +1,56 @@
+# VOLKS ARCADE preview
+
+A responsive front-end prototype for the Volks Arcade gaming and community hub.
+
+## Open the preview
+
+Open `index.html` in a modern browser. Profile edits, game scores, XP, reward purchases, settings, local message drafts and preview factions are saved in that browser with a versioned `localStorage` key. Clear this site's browser storage to reset the demo.
+
+## What's represented
+
+- Compact home, creator content, arcade, VA Store, community, factions, members, profile, socials, premium and admin-preview sections.
+- Playable Snake, Snakes & Ladders, reaction-time, Tetris, Checkers and Noughts & Crosses games. Daily XP is limited per activity in the local demo.
+- Global XP and level are separate from faction membership and faction ranks. XP spent on a preview reward does not reduce lifetime progression XP.
+- Editable profile details, public/online preference controls, badges, reward previews and locally stored faction applications with a moderator review queue. House of Vol'Kah is shown as a Star Trek Online fleet with the supplied lore, recruitment text, and Rank 1–7 ladder. UEEIF is a separate Star Citizen org with the supplied six-rank ladder; EmperorVolkorian is listed as org leader (Founder, assigned rank General), separately from the Colonel / Rank 5 member ladder claim. The organization history and role permissions are shown in its profile, with a Join the UEEIF link to the official RSI org page on the faction card and profile. Vampiric Hierarchy is an Elder Scrolls Online guild founded 19 May 2021 by @EmperorVolkorian; its seven ranks appear in descending order in the guild profile. Application and approval states stay in this browser and are not in-game verification.
+- Premium requests for Basic Member, Elite Member, Premium Member, VolksArcade Legacy Member, PayPal Donator or access-code review can be submitted and reviewed by assigned admins/moderators in the local admin preview; approval displays a supporter badge and unlocks the preview member area. Codes are shown to admins in this browser-only preview for review; they are not validated and need protected server-side handling for a live site. The four PayPal buttons can start real recurring £3.99/month, £9.99/month, £29.99/month and £99.99/year charges; the resulting subscription ID is submitted for manual review. One-time donations open the supplied PayPal business link. Local-only global and faction chat plus notification previews. Discord, Instagram, TikTok, Twitch, Kick, YouTube and Steam links are wired in.
+- Staff can switch into a temporary new-player preview from the top bar to see the locked Premium state and request form. The owner profile is restored when exiting, and demo requests remain visible to staff for review.
+- Sign-up and sign-in are preview flows only. The sign-up modal has password and confirmation fields, but discards them and creates no real login. Sign-up separates faction claims, optional website membership selection, external supporter verification and moderator applications; a selected website plan routes to PayPal after the preview profile is created. Quick Discord or Steam authentication needs a secure account backend and OAuth connection.
+- Admin Preview has an Admins & Moderators directory with moderator assignments grouped by website, Discord, TikTok, Twitch, Kick and faction, plus moderator request review. Admins can grant scopes; only the owner can change admin-level accounts. Staff notes support blank, in-progress and done states, with delete controls. These staff tools and notes are browser-local demonstrations.
+- Socials includes one-time community XP missions: 750 XP for verified Discord membership and 500 XP for each connected social platform; approved faction membership awards 250 XP. Claims enter an admin queue and cannot be repeated after approval. The static preview cannot independently verify follows or server membership.
+- VA Store puts merch marked Coming Soon first, then XP-to-VA-Coin exchange, three proposed GBP coin packs, and level-gated profile customisation. Profile-logo and banner uploads unlock with VA Coins; cosmetics, badges and titles also use coins. XP exchange reduces the spendable XP balance but preserves lifetime XP and level. Coin purchases with money are display-only until secure checkout and wallet services exist.
+- The profile banner includes the player's connected social links. Players can add Steam and other profile URLs, upload a base avatar, then unlock custom logo and banner image slots in the VA Store. Files are local preview data and remain browser-specific.
+- The top bar wallet opens the VA Store, and member cards show VA Coin balances. Staff and moderator directories separate site roles, platform scopes, and faction/guild scopes; each entry shows its access scope and approved game ranks. The preview does not issue or expose login/access secrets.
+- Platform Chat replaces one-to-one messages with a global room, faction rooms, and leader-only rooms. Faction cards link to their shared room, show requirements on hover, and include the supplied game store/referral links. Staff can review and remove messages from every room.
+- Member management has a separate Suspensions & Bans tab. Suspensions can last 1 hour, 12 hours, 3 days or 1 week, include a reason and restrict selected categories. Bans are permanent until staff restore access. Countdown and enforcement are local to this preview.
+- Premium includes separate support paths for external supporter verification and one-time donations, Basic Member at £3.99 per month, Elite Member at £9.99 per month, Premium Member at £29.99 per month, and VolksArcade Legacy Member at £99.99 per year. All four supplied PayPal plan IDs are connected to separate subscription buttons and place their subscription IDs into tier-specific local access requests. The Legacy Member request is recorded as a 12-month paid term. A one-time 7-day trial costs 500 VA Coins and can be used once in this local preview; after it expires, the paid membership options remain available. Verified donations accumulate lifetime Bronze/Silver/Gold supporter tiers; a verified subscription grants Premium only for its recorded paid period. Example donation thresholds are 5 / 25 / 100 in the payment currency and should be customized. This prototype does not securely verify payment status, handle renewals or cancellations, or enforce Premium access; a live launch needs server-side subscription verification and webhook handling.
+
+## Prototype boundary
+
+This is static HTML, CSS and JavaScript. It has no real accounts, server, shared database, server-authoritative XP, live member list, shared realtime chat, moderation enforcement, admin authorization, payment verification, subscription webhooks or Discord integration. PayPal handles checkout externally, but this site does not verify charges or manage renewals/cancellations. Browser storage can be edited by the visitor; it must never be treated as proof of identity, XP ownership, permissions or premium entitlement. Demo profiles and scores are clearly marked and must be replaced by registered-user data before launch.
+
+## Production architecture to grow into
+
+Keep browser UI and trusted services separate:
+
+1. A web client calls a versioned API. Never ship Discord bot tokens, payment secrets or admin credentials to the browser.
+2. An authentication service issues secure sessions (HttpOnly, Secure, SameSite cookies). Discord OAuth should be an optional account connection with explicit consent and scoped access.
+3. A relational database stores users, profile visibility, platform links, XP ledger entries, levels, badges, reward inventory, games/scores, factions, faction ranks, membership history, applications, notifications, messages, subscriptions and moderation reports.
+4. XP is awarded by server-validated activity events. Keep an append-only XP ledger and compute global progression independently of faction state. If XP is spent, track an earned/progression total plus an available balance so purchases cannot silently erase earned levels.
+5. Factions are data records with game, name, emblem/banner, lore, leader, recruitment state, custom ranks, per-rank permissions, member links, achievements and optional Discord role mappings. Faction membership and rank changes emit audited events. Leaving a faction removes its website rank; an authorized Discord bot can reconcile the mapped role while preserving global progression roles.
+6. Shared chat uses authenticated room membership checks, a staff audit trail, reporting, rate limits and retention controls. Leader rooms need verified faction-leader permissions. Do not expose a member's Discord identity unless they choose to share it.
+7. Premium pages and rewards check entitlements on the server on every protected request. A verified payment webhook updates subscription status; a hidden page or front-end password is not access control.
+8. Leaderboards query registered accounts and trusted score/XP data. Filter by week, month or all-time on the API. Until there are real members, show an empty state rather than sample users.
+
+Possible API groups: `/api/v1/session`, `/profiles`, `/xp`, `/achievements`, `/rewards`, `/games/scores`, `/leaderboards`, `/factions`, `/applications`, `/messages`, `/notifications`, `/admin/factions`, `/admin/premium`, `/applications/premium`, `/billing/entitlements`, `/integrations/discord`.
+
+Before a public launch, replace all preview-only actions/data, connect hosting and a database, define privacy/retention and moderation policies, and test account authorization and payment/Discord webhooks on the server.
+
+- UEEIF org profile documents are split into H / History, M / Manifesto and C / Charter tabs, alongside the org roles and six-rank ladder.
+
+- Admin preview includes sample staff role assignment with Founder, Administrator, Moderator and Content Manager badges; member edit, warning, suspension, removal and restoration controls; and a Premium supporter verification queue. Staff assignment, moderation, subscription status and approvals are local preview state only, not account security or payment verification.
+
+## Community XP, events, faction applications and chat preview
+
+The Community page now includes an XP guide with direct routes to the arcade, faction directory, socials and platform chat, plus rotating local challenges: one daily featured-game launch (+40 XP) and a weekly three-win goal across Snakes & Ladders, Checkers and Noughts & Crosses (+180 XP). Each faction card has an application button with a character name and claimed-rank selector; submissions enter the existing staff faction-claim queue and award +250 XP after approval. Approved members no longer see the join prompt; pending applicants see a pending state.
+
+Platform chat messages can be edited or deleted by their author, removed by staff scoped to that room, and pinned by assigned staff. A pin creates a notification for the message author in the same browser preview. These controls update the shared local browser record, so an edit or deletion affects that preview record; they do not sync to other visitors. A production site needs authenticated server-side message storage, real-time delivery, notification delivery, permission checks and moderation audit history.

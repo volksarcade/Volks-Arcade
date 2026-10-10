@@ -1,0 +1,9 @@
+# Local credentials, local Supabase state and editor/OS files
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+.DS_Store
+Thumbs.db
+desktop.ini
