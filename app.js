@@ -138,7 +138,7 @@
     document.getElementById('xp-fill').style.width = `${lv.percent}%`;
     document.getElementById('next-level-copy').textContent = `${num(Math.max(0, lv.ceiling - data.xp))} XP TO LEVEL ${lv.level + 1}`;
     document.getElementById('stat-achievements').textContent = String(profileBadgeList().length).padStart(2, '0');
-    document.getElementById('side-level').parentElement.innerHTML = `<span class="tiny-dot"></span> Level ${lv.level} · ${esc(title)}`;
+    document.getElementById('side-level').parentElement.innerHTML = `<span class="tiny-dot"></span> Level <span id="side-level">${lv.level}</span> · ${esc(title)}`;
     ['home-avatar','top-profile','profile-avatar'].forEach(id => { const el = document.getElementById(id); if (!el) return; const avatar=p.logo||p.avatar; if (avatar) { el.style.backgroundImage = `url("${avatar}")`; el.style.backgroundSize = 'cover'; el.textContent = ''; } else { el.style.backgroundImage = ''; el.textContent = (p.display[0] || 'V').toUpperCase(); } });
     document.getElementById('guild-global-level').textContent = `LVL ${lv.level}`;
     document.getElementById('profile-level').textContent = lv.level;
