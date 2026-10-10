@@ -4,5 +4,6 @@ window.VOLKS_ARCADE_BACKEND = Object.freeze({
   enabled: true,
   supabaseUrl: 'https://vwmntsvcozsvfxlpgygg.supabase.co',
   publishableKey: 'sb_publishable_YVSoR3DmmtjEOP4E8yjMhg_dZZfcSYN',
+  googleOAuthEnabled: true,
   subscriptionsEnabled: false
 });
