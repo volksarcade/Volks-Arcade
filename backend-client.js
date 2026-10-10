@@ -14,14 +14,30 @@
     const api = {
       client,
       async signUp(email, password, displayName) {
-        return unwrap(await client.auth.signUp({ email, password, options: { data: { display_name: displayName }, emailRedirectTo: `${window.location.origin}${window.location.pathname}` } }));
+        return unwrap(await client.auth.signUp({ email, password, options: { data: { display_name: displayName, profile_complete: true }, emailRedirectTo: `${window.location.origin}${window.location.pathname}` } }));
       },
       async signIn(email, password) {
         return unwrap(await client.auth.signInWithPassword({ email, password }));
       },
+      async signInWithGoogle() {
+        return unwrap(await client.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: `${window.location.origin}${window.location.pathname}` }
+        }));
+      },
+      async resendSignupConfirmation(email) {
+        return unwrap(await client.auth.resend({
+          type: 'signup',
+          email,
+          options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
+        }));
+      },
       async signOut() { return unwrap(await client.auth.signOut()); },
       async session() { return unwrap(await client.auth.getSession()); },
       async currentUser() { return unwrap(await client.auth.getUser()); },
+      async completeGoogleProfile(displayName) {
+        return unwrap(await client.auth.updateUser({ data: { display_name: displayName, profile_complete: true } }));
+      },
       async profile(userId) {
         const result = await client.from('profiles').select('id,username,bio,favorite_games,social_links,avatar_url,banner_url,is_public,show_online').eq('id', userId).single();
         return unwrap(result);
@@ -33,6 +49,26 @@
       async staffAssignment(userId) {
         const result = await client.from('staff_assignments').select('role,scopes').eq('user_id', userId).maybeSingle();
         return unwrap(result);
+      },
+      async profileByUsername(username) {
+        const result = await client.from('profiles').select('id,username').eq('username', username).maybeSingle();
+        return unwrap(result);
+      },
+      async saveStaffAssignment(userId, role, scopes = [], assignedBy = null) {
+        const result = await client.from('staff_assignments').upsert({ user_id:userId, role, scopes, assigned_by:assignedBy }, { onConflict:'user_id' }).select('user_id,role,scopes,assigned_by,created_at').single();
+        return unwrap(result);
+      },
+      async removeStaffAssignment(userId) {
+        return unwrap(await client.from('staff_assignments').delete().eq('user_id', userId));
+      },
+      async saveModeratorScopes(userId, scopes = [], assignedBy = null) {
+        const existing = await this.staffAssignment(userId);
+        if (existing && existing.role !== 'moderator') throw new Error('This account has a site-wide role; manage that role in Site Admins.');
+        if (!scopes.length) {
+          if (existing?.role === 'moderator') await this.removeStaffAssignment(userId);
+          return null;
+        }
+        return this.saveStaffAssignment(userId, 'moderator', scopes, assignedBy);
       },
       async saveProfile(userId, profile) {
         const result = await client.from('profiles').update(profile).eq('id', userId).select().single();
