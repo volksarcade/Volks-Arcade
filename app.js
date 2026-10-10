@@ -1,4 +1,5 @@
 (() => {
+    const databaseMode = Boolean(window.VABackendReady);
   const KEY = 'volksArcadePreview.v1';
   const dayKey = new Date().toISOString().slice(0, 10);
   const defaults = {
