@@ -22,7 +22,7 @@
       async signInWithGoogle() {
         return unwrap(await client.auth.signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: `${window.location.origin}${window.location.pathname}` }
+          options: { redirectTo: new URL(window.location.pathname, window.location.origin).href, queryParams: { prompt: 'select_account' } }
         }));
       },
       async resendSignupConfirmation(email) {
@@ -101,6 +101,26 @@
       async staffAssignments() {
         return unwrap(await client.from('staff_assignments').select('user_id,role,scopes,assigned_by,created_at'));
       },
+      async siteSettings() {
+        const result = await client.from('site_config').select('settings,updated_at').eq('config_key', 'main').single();
+        return unwrap(result);
+      },
+      async saveSiteSettings(settings) {
+        const result = await client.from('site_config').update({ settings, updated_at: new Date().toISOString() }).eq('config_key', 'main').select('settings,updated_at').single();
+        return unwrap(result);
+      },
+      async pendingCommunityXpClaims() {
+        return unwrap(await client.from('community_xp_claims').select('id,user_id,mission_key,provider,proof,xp_reward,status,created_at').eq('status', 'pending').order('created_at'));
+      },
+      async communityXpClaims(userId) {
+        return unwrap(await client.from('community_xp_claims').select('id,mission_key,provider,proof,xp_reward,status,created_at').eq('user_id', userId).order('created_at'));
+      },
+      async submitCommunityXpClaim(claim) {
+        return unwrap(await client.from('community_xp_claims').insert(claim).select().single());
+      },
+      async reviewCommunityXpClaim(id, approve) {
+        return unwrap(await client.rpc('review_community_xp_claim', { p_claim_id:id, p_approve:approve }));
+      },
       async profilesFor(userIds) {
         if (!userIds.length) return [];
         return unwrap(await client.from('profiles').select('id,username').in('id', userIds));
@@ -152,3 +172,4 @@
     window.VABackendError = error;
   });
 })();
+
