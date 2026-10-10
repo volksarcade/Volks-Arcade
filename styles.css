@@ -166,6 +166,7 @@
 .creator-popular-links>a>span:nth-child(2){min-width:0;display:grid;gap:4px}
 .creator-popular-links b{font-size:9px}
 .creator-popular-links small{color:#9398a4;font-size:7px;line-height:1.4}
+.tiktok-profile-card{grid-column:1/-1;align-items:center}.tiktok-profile-card>.creator-video-label,.tiktok-profile-card>h3{align-self:flex-start}.tiktok-profile-embed{width:min(720px,100%);min-height:560px;max-height:900px;align-self:center;overflow:auto;border:1px solid #2e313a;border-radius:5px;background:#090a0d}.tiktok-profile-embed blockquote.tiktok-embed{width:100%;max-width:720px!important;min-width:0!important;margin:0 auto!important}
 @media(max-width:900px){.creator-popular-links{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.creator-popular-links{grid-template-columns:1fr}}
 [hidden] { display: none !important; }
