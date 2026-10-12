@@ -631,8 +631,8 @@
       });
       body.querySelector('#google-profile-signout').addEventListener('click',async()=>{try{const backend=await window.VABackendReady;await backend.signOut();clearLiveGuestState();localStorage.removeItem(KEY);closeModal();update();route('home');showToast('Signed out.');}catch(error){showToast('Sign out failed: '+(error.message||'Please try again.'));}});
     } else if (kind === 'profile') {
-      title.textContent = 'Edit profile'; eye.textContent = 'PLAYER ID // LOCAL PREVIEW';
-      body.innerHTML = `<form id="profile-form"><div class="form-grid"><div class="form-field"><label for="display-name">DISPLAY NAME</label><input class="field-input" id="display-name" name="display" maxlength="24" value="${esc(data.profile.display)}" required></div><div class="form-field"><label for="discord-name">DISCORD USERNAME · OPTIONAL</label><input class="field-input" id="discord-name" name="discord" value="${esc(data.profile.discord)}" placeholder="Only shown if you choose"></div><div class="form-field full"><label for="bio">BIO</label><textarea class="field-textarea" id="bio" name="bio" maxlength="180">${esc(data.profile.bio)}</textarea></div><div class="form-field full"><label for="favorite-games-input">FAVOURITE GAMES · COMMA SEPARATED</label><input class="field-input" id="favorite-games-input" name="favoriteGames" value="${esc(data.profile.favoriteGames)}" placeholder="Star Citizen, ..."></div><div class="form-field"><label for="twitch-link">TWITCH URL</label><input class="field-input" id="twitch-link" name="twitch" value="${esc(data.profile.twitch)}" placeholder="Not connected"></div><div class="form-field"><label for="kick-link">KICK URL</label><input class="field-input" id="kick-link" name="kick" value="${esc(data.profile.kick)}" placeholder="Not connected"></div><div class="form-field"><label for="youtube-link">YOUTUBE URL</label><input class="field-input" id="youtube-link" name="youtube" value="${esc(data.profile.youtube)}" placeholder="Not connected"></div><div class="form-field"><label for="instagram-link">INSTAGRAM URL</label><input class="field-input" id="instagram-link" name="instagram" value="${esc(data.profile.instagram)}"></div><div class="form-field"><label for="steam-link">STEAM PROFILE URL</label><input class="field-input" id="steam-link" name="steam" value="${esc(data.profile.steam)}" placeholder="Not connected"></div><div class="form-field"><label for="tiktok-link">TIKTOK URL</label><input class="field-input" id="tiktok-link" name="tiktok" value="${esc(data.profile.tiktok)}"></div><div class="form-field full"><label for="avatar-file">AVATAR IMAGE · LOCAL PREVIEW</label><input class="field-input" id="avatar-file" type="file" accept="image/*"></div></div><fieldset class="form-category profile-branding-category"><legend>PROFILE CUSTOMISATION</legend><p>Upload a personal logo or banner after unlocking its slot in the VA Store.</p><div class="form-grid"><div class="form-field"><label for="profile-logo-file">CUSTOM PROFILE LOGO · ${ownsReward(rewardCatalog.find(item=>item.id==='custom-logo-slot'))?'SLOT READY':'LEVEL 5 + STORE UNLOCK'}</label><input class="field-input" id="profile-logo-file" type="file" accept="image/*" ${ownsReward(rewardCatalog.find(item=>item.id==='custom-logo-slot'))?'': 'disabled'}></div><div class="form-field"><label for="profile-banner-file">CUSTOM PROFILE BANNER · ${ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))?'SLOT READY':'LEVEL 10 + STORE UNLOCK'}</label><input class="field-input" id="profile-banner-file" type="file" accept="image/*" ${ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))?'': 'disabled'}></div></div><button type="button" class="text-link" data-profile-store>UNLOCK CUSTOMISATION ↗</button></fieldset><fieldset class="form-category faction-editor"><legend>FACTIONS &amp; GUILDS</legend><p>Choose one or more groups, then claim your current in-game rank. Each application is reviewed separately.</p>${factionClaimForm()}</fieldset><div class="toggle-row"><span>Make profile public<small>Choose which profile details other players can view.</small></span><input type="checkbox" name="public" ${data.profile.public ? 'checked' : ''}></div><div class="toggle-row"><span>Show online status<small>Let other players see if you're around.</small></span><input type="checkbox" name="online" ${data.profile.online ? 'checked' : ''}></div><p class="modal-note">Saved in this browser only. Profile visibility and account data require a connected backend before this is live.</p><div class="modal-actions"><button class="button button-secondary" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Save preview ↗</button></div></form>`;
+      title.textContent = 'Edit profile'; eye.textContent = databaseMode ? 'PLAYER ID // LIVE ACCOUNT' : 'PLAYER ID // LOCAL PREVIEW';
+      body.innerHTML = `<form id="profile-form"><div class="form-grid"><div class="form-field"><label for="display-name">DISPLAY NAME</label><input class="field-input" id="display-name" name="display" maxlength="24" value="${esc(data.profile.display)}" required></div><div class="form-field"><label for="discord-name">DISCORD USERNAME · OPTIONAL</label><input class="field-input" id="discord-name" name="discord" value="${esc(data.profile.discord)}" placeholder="Only shown if you choose"></div><div class="form-field full"><label for="bio">BIO</label><textarea class="field-textarea" id="bio" name="bio" maxlength="180">${esc(data.profile.bio)}</textarea></div><div class="form-field full"><label for="favorite-games-input">FAVOURITE GAMES · COMMA SEPARATED</label><input class="field-input" id="favorite-games-input" name="favoriteGames" value="${esc(data.profile.favoriteGames)}" placeholder="Star Citizen, ..."></div><div class="form-field"><label for="twitch-link">TWITCH URL</label><input class="field-input" id="twitch-link" name="twitch" value="${esc(data.profile.twitch)}" placeholder="Not connected"></div><div class="form-field"><label for="kick-link">KICK URL</label><input class="field-input" id="kick-link" name="kick" value="${esc(data.profile.kick)}" placeholder="Not connected"></div><div class="form-field"><label for="youtube-link">YOUTUBE URL</label><input class="field-input" id="youtube-link" name="youtube" value="${esc(data.profile.youtube)}" placeholder="Not connected"></div><div class="form-field"><label for="instagram-link">INSTAGRAM URL</label><input class="field-input" id="instagram-link" name="instagram" value="${esc(data.profile.instagram)}"></div><div class="form-field"><label for="steam-link">STEAM PROFILE URL</label><input class="field-input" id="steam-link" name="steam" value="${esc(data.profile.steam)}" placeholder="Not connected"></div><div class="form-field"><label for="tiktok-link">TIKTOK URL</label><input class="field-input" id="tiktok-link" name="tiktok" value="${esc(data.profile.tiktok)}"></div><div class="form-field full"><label for="avatar-file">PROFILE IMAGE / LOGO · ${databaseMode?(ownsReward(rewardCatalog.find(item=>item.id==='custom-logo-slot'))?'SLOT READY':'UNLOCK IN VA STORE'):'LOCAL PREVIEW'}</label><input class="field-input" id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" ${databaseMode&&!ownsReward(rewardCatalog.find(item=>item.id==='custom-logo-slot'))?'disabled':''}><small class="field-hint">Your image appears on your profile card and in the site header. PNG, JPG or WebP · up to 2 MB.</small></div></div><fieldset class="form-category profile-branding-category"><legend>PROFILE CUSTOMISATION</legend><p>Upload a personal logo or banner after unlocking its slot in the VA Store.</p><div class="form-grid"><p class="field-hint full">The profile image above uses your custom logo slot.</p><div class="form-field"><label for="profile-banner-file">CUSTOM PROFILE BANNER · ${databaseMode?(ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))?'SLOT READY':'UNLOCK IN VA STORE'):ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))?'SLOT READY':'LEVEL 10 + STORE UNLOCK'}</label><input class="field-input" id="profile-banner-file" type="file" accept="image/jpeg,image/png,image/webp" ${databaseMode&&!ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))?'disabled':!ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))?'disabled':''}></div></div><button type="button" class="text-link" data-profile-store>UNLOCK CUSTOMISATION ↗</button></fieldset><fieldset class="form-category faction-editor"><legend>FACTIONS &amp; GUILDS</legend><p>Choose one or more groups, then claim your current in-game rank. Each application is reviewed separately.</p>${factionClaimForm()}</fieldset><div class="toggle-row"><span>Make profile public<small>Choose which profile details other players can view.</small></span><input type="checkbox" name="public" ${data.profile.public ? 'checked' : ''}></div><div class="toggle-row"><span>Show online status<small>Let other players see if you're around.</small></span><input type="checkbox" name="online" ${data.profile.online ? 'checked' : ''}></div><p class="modal-note">${databaseMode?'Profile details and uploaded images save to your signed-in account.':'Preview changes save in this browser only.'}</p><div class="modal-actions"><button class="button button-secondary" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">${databaseMode?'Save profile ↗':'Save preview ↗'}</button></div></form>`;
       document.getElementById('profile-form').addEventListener('submit', saveProfile);
       body.querySelector('[data-profile-store]')?.addEventListener('click',()=>{closeModal();route('store');});
       wireFactionClaimChoices(document.getElementById('profile-form'));
@@ -697,7 +697,8 @@
     back.classList.add('open'); back.setAttribute('aria-hidden','false');
   }
   async function saveProfile(e) {
-    e.preventDefault(); const fd = new FormData(e.currentTarget); const p = data.profile, oldDisplay = p.display;
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget), p = data.profile, oldDisplay = p.display;
     ['display','bio','favoriteGames','discord','twitch','kick','youtube','steam','instagram','tiktok'].forEach(k => { if (fd.has(k)) p[k] = String(fd.get(k)).trim(); });
     const ownerRecord = data.staffAccess.find(person => person.role === 'Owner' && person.username.toLowerCase() === oldDisplay.toLowerCase());
     if (ownerRecord && oldDisplay !== p.display) ownerRecord.username = p.display;
@@ -712,12 +713,58 @@
       if (latest && latest.characterName === characterName && latest.claimedRank === claimedRank && latest.status !== 'declined') return;
       data.factionClaims.push({ claimId:`claim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`, username:p.display, factionId:faction.id, factionName:faction.name, game:faction.game, characterName, claimedRank, status:'pending', submittedAt:new Date().toISOString() });
     });
-    const commit = async () => { if(databaseMode){try{const backend=await window.VABackendReady;if(!data.currentUserId)throw new Error('Sign in before saving your profile.');await backend.saveProfile(data.currentUserId,{username:p.display,bio:p.bio,favorite_games:String(p.favoriteGames||'').split(',').map(game=>game.trim()).filter(Boolean).slice(0,12),social_links:{discord:p.discord,twitch:p.twitch,kick:p.kick,youtube:p.youtube,steam:p.steam,tiktok:p.tiktok,instagram:p.instagram},is_public:p.public,show_online:p.online});}catch(error){showToast('Profile could not be saved: '+(error.message||'Please try again.'));return;}}persist(); update(); if(databaseMode){refreshRecentSignups();if(can(currentStaffRole(),'manageMembers'))refreshMemberDirectory();} closeModal(); showToast(databaseMode?'Player profile saved to your account.':'Player profile saved to this browser.'); };
-    const uploads=[['avatar-file','avatar',true],['profile-logo-file','logo',ownsReward(rewardCatalog.find(item=>item.id==='custom-logo-slot'))],['profile-banner-file','banner',ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))]].map(([id,key,unlocked])=>({file:document.getElementById(id)?.files?.[0],key,unlocked})).filter(item=>item.file&&item.unlocked);
-    if(databaseMode&&uploads.length){showToast('Profile image uploads are not connected yet. You can save text and social links now.');return;}
-    if(uploads.some(item=>item.file.size>750000)){showToast('Each image must be smaller than 750 KB in this browser preview.');return;}
-    if(!uploads.length){commit();return;}
-    Promise.all(uploads.map(item=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve([item.key,reader.result]);reader.onerror=reject;reader.readAsDataURL(item.file);}))).then(entries=>{entries.forEach(([key,value])=>{p[key]=value;});commit();}).catch(()=>showToast('That image could not be loaded. Try a different file.'));
+    const commit = async () => {
+      if(databaseMode){
+        try {
+          const backend=await window.VABackendReady;
+          if(!data.currentUserId) throw new Error('Sign in before saving your profile.');
+          await backend.saveProfile(data.currentUserId,{
+            username:p.display,bio:p.bio,
+            favorite_games:String(p.favoriteGames||'').split(',').map(game=>game.trim()).filter(Boolean).slice(0,12),
+            social_links:{discord:p.discord,twitch:p.twitch,kick:p.kick,youtube:p.youtube,steam:p.steam,tiktok:p.tiktok,instagram:p.instagram},
+            avatar_url:p.logo||p.avatar||null,banner_url:p.banner||null,
+            is_public:p.public,show_online:p.online
+          });
+        } catch(error) { showToast('Profile could not be saved: '+(error.message||'Please try again.')); return; }
+      }
+      persist(); update();
+      if(databaseMode){refreshRecentSignups();if(can(currentStaffRole(),'manageMembers'))refreshMemberDirectory();}
+      closeModal(); showToast(databaseMode?'Player profile saved to your account.':'Player profile saved to this browser.');
+    };
+    const logoUnlocked=ownsReward(rewardCatalog.find(item=>item.id==='custom-logo-slot'));
+    const bannerUnlocked=ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'));
+    const uploads=[
+      {file:document.getElementById('avatar-file')?.files?.[0],key:'logo',slot:'logo',unlocked:logoUnlocked},
+      {file:document.getElementById('profile-banner-file')?.files?.[0],key:'banner',slot:'banner',unlocked:bannerUnlocked}
+    ].filter(item=>item.file);
+    if(uploads.some(item=>!item.unlocked)){showToast('Unlock that image slot in the VA Store before uploading.');return;}
+    const acceptedTypes=new Set(['image/jpeg','image/png','image/webp']);
+    if(uploads.some(item=>!acceptedTypes.has(item.file.type))){showToast('Choose a PNG, JPG or WebP image.');return;}
+    if(uploads.some(item=>item.file.size>2097152)){showToast('Each image must be 2 MB or smaller.');return;}
+    if(databaseMode&&uploads.length){
+      try{
+        const backend=await window.VABackendReady;
+        if(!data.currentUserId)throw new Error('Sign in before uploading a profile image.');
+        for(const item of uploads){
+          const uploaded=await backend.uploadProfileImage(data.currentUserId,item.slot,item.file);
+          if(item.slot==='logo'){p.logo=uploaded.publicUrl;p.avatar=uploaded.publicUrl;}
+          if(item.slot==='banner')p.banner=uploaded.publicUrl;
+        }
+      }catch(error){showToast('Image upload failed: '+(error.message||'Please try again.'));return;}
+      await commit();
+      return;
+    }
+    if(!uploads.length){await commit();return;}
+    try{
+      const entries=await Promise.all(uploads.map(item=>new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve([item.key,reader.result]);
+        reader.onerror=reject;
+        reader.readAsDataURL(item.file);
+      })));
+      for(const [key,value] of entries){p[key]=value;if(key==='logo')p.avatar=value;}
+      await commit();
+    }catch{showToast('That image could not be loaded. Try a different file.');}
   }
   function saveAdminMember(e) {
     e.preventDefault(); const fd = new FormData(e.currentTarget), id = String(fd.get('memberId'));
