@@ -76,7 +76,7 @@
   }
   function persist() { data.economyVersion=2;const saved=isNewPlayerPreview()?{...data,profile:previewOriginalProfile,xp:previewOriginalXp.xp,spendableXp:previewOriginalXp.spendableXp,wallet:previewOriginalXp.wallet,level:previewOriginalXp.level,badges:previewOriginalXp.badges,accountCreated:true}:data; localStorage.setItem(KEY, JSON.stringify(saved)); }
   async function hydrateBackendUser(backend, user) {
-    const [profile, wallet, staff, claims, support, entitlements, communityRows] = await Promise.all([backend.profile(user.id), backend.wallet(user.id), backend.staffAssignment(user.id), backend.factionApplications(user.id), backend.supportApplications(user.id), backend.premiumEntitlements(user.id), backend.communityXpClaims(user.id)]);
+    const [profile, wallet, staff, claims, support, entitlements, communityRows, moderationRows] = await Promise.all([backend.profile(user.id), backend.wallet(user.id), backend.staffAssignment(user.id), backend.factionApplications(user.id), backend.supportApplications(user.id), backend.premiumEntitlements(user.id), backend.communityXpClaims(user.id), backend.moderationActions()]);
     const authProvider = user.app_metadata?.provider || user.identities?.[0]?.provider;
     googleProfileSetupRequired = authProvider === 'google' && user.user_metadata?.profile_complete !== true;
     const links = profile.social_links || {};
@@ -85,6 +85,10 @@
     data.accountCreated = true;
     data.profile = { ...defaults.profile, display:profile.username, bio:profile.bio || '', favoriteGames:Array.isArray(profile.favorite_games) ? profile.favorite_games.join(', ') : '', discord:links.discord || '', twitch:links.twitch || '', kick:links.kick || '', youtube:links.youtube || '', steam:links.steam || '', tiktok:links.tiktok || '', instagram:links.instagram || '', avatar:profile.avatar_url || '', banner:profile.banner_url || '', public:profile.is_public, online:profile.show_online };
     data.xp = Number(wallet?.lifetime_xp || 0); data.spendableXp = Number(wallet?.spendable_xp || 0); data.wallet = Number(wallet?.va_coins || 0); data.level = levelFor(data.xp).level;
+    const ownModeration=moderationRows[0];
+    if(ownModeration&&['suspend','ban'].includes(ownModeration.action)&&(!ownModeration.ends_at||new Date(ownModeration.ends_at).getTime()>Date.now())){
+      data.memberOverrides[profile.username]={status:ownModeration.action==='ban'?'banned':'suspended',reason:ownModeration.reason,categories:ownModeration.categories||[],endsAt:ownModeration.ends_at,startedAt:ownModeration.created_at};
+    }else delete data.memberOverrides[profile.username];
     data.owned = (await backend.ownedStoreItems(user.id)).map(row=>row.item_id);
     if (role === 'Owner' || role === 'Administrator' || (staff?.role === 'moderator' && (staff.scopes||[]).includes('staff-notes'))) {
       try { const notes=await backend.staffNotes(); data.staffNotes=notes.map(row=>({id:row.id,text:row.body,status:row.state==='done'?'done':row.state==='in_progress'?'progress':'blank',createdBy:row.author_id===user.id?profile.username:'Staff',createdAt:row.created_at})); } catch(error) { console.warn('Shared staff notes could not load:',error.message); }
@@ -105,10 +109,11 @@
     if(!databaseMode||!data.currentUserId)return;
     try{
       const backend=await window.VABackendReady;
-      const [factionRows,supportRows,modRows,xpRows,staffRows]=await Promise.all([
-        backend.pendingFactionApplications(),backend.pendingSupportApplications(),backend.pendingModeratorApplications(),backend.pendingCommunityXpClaims(),backend.staffAssignments()
+      const [factionRows,supportRows,modRows,xpRows,staffRows,moderationRows]=await Promise.all([
+        backend.pendingFactionApplications(),backend.pendingSupportApplications(),backend.pendingModeratorApplications(),backend.pendingCommunityXpClaims(),backend.staffAssignments(),
+        can(currentStaffRole(),'manageMembers')?backend.moderationActions():Promise.resolve([])
       ]);
-      const ids=[...new Set([...factionRows,...supportRows,...modRows,...xpRows,...staffRows].map(row=>row.user_id).filter(Boolean))];
+      const ids=[...new Set([...factionRows,...supportRows,...modRows,...xpRows,...staffRows,...moderationRows].map(row=>row.user_id).filter(Boolean))];
       const profiles=await backend.profilesFor(ids),names=new Map(profiles.map(profile=>[profile.id,profile.username]));
       const rankKeys={ 'house-volkah':['bekk','la-commander','boq-colonel','sa-general','aj-admiral','council','joh'], ueeif:['colonel','major','warrant-officer','sergeant','private','recruit'], 'vampiric-hierarchy':['vampire-overlord','vampire-council','royal-vampire','vampire-lord','vampire-general','vampire','purebloods'] };
       data.factionReviewQueue=factionRows.map(row=>{const faction=factionCatalog().find(item=>item.id===row.faction_id),rankIndex=rankKeys[row.faction_id]?.indexOf(row.rank_key)??-1;return {claimId:row.id,username:names.get(row.user_id)||'Player',factionId:row.faction_id,factionName:faction?.name||row.faction_id,game:faction?.game||'',characterName:row.character_name,claimedRank:faction?.ranks[rankIndex]||row.rank_key,status:'pending',submittedAt:row.created_at};});
@@ -117,6 +122,12 @@
       data.pendingCommunityXpClaims=xpRows.map(row=>({id:row.id,username:names.get(row.user_id)||'Player',missionId:row.mission_key,platform:row.provider,proof:row.proof,xp:Number(row.xp_reward)||0,status:'pending',submittedAt:row.created_at}));
       data.staffAccess=staffRows.map(row=>({id:row.user_id,username:names.get(row.user_id)||'Player',gameHandle:'',role:({owner:'Owner',administrator:'Administrator',moderator:'Moderator',content_manager:'Content Manager'})[row.role]||'Moderator',scopes:row.scopes||[],assignedBy:row.assigned_by}));
       data.moderatorAssignments=staffRows.filter(row=>row.role==='moderator').flatMap(row=>(row.scopes||[]).map(scope=>({id:row.user_id+':'+scope,username:names.get(row.user_id)||'Player',scope,assignedBy:names.get(row.assigned_by)||'admin'})));
+      if(can(currentStaffRole(),'manageMembers')){
+        data.moderationHistory=moderationRows.map(row=>({id:row.id,userId:row.user_id,username:names.get(row.user_id)||'Player',action:row.action==='restore'?'restored':row.action,reason:row.reason,categories:row.categories||[],currentEnd:row.ends_at,by:names.get(row.moderator_id)||'Staff',at:row.created_at}));
+        const latest=new Map();for(const row of moderationRows)if(!latest.has(row.user_id))latest.set(row.user_id,row);
+        data.memberOverrides={};
+        for(const [userId,row] of latest){const active=['suspend','ban'].includes(row.action)&&(!row.ends_at||new Date(row.ends_at).getTime()>Date.now());if(active){const username=names.get(userId);if(username)data.memberOverrides[username]={status:row.action==='ban'?'banned':'suspended',reason:row.reason,categories:row.categories||[],endsAt:row.ends_at,startedAt:row.created_at};}}
+      }
       data.adminAttention=[];
       const viewerRole=staffRecord(data.profile.display)?.role||(moderatorAssignmentsFor(data.profile.display).length?'Moderator':'');
       const attention=[
@@ -126,7 +137,7 @@
         ['Community XP claims',can(viewerRole,'reviewCommunity')?data.pendingCommunityXpClaims.length:0,'#admin-community-xp',null]
       ];
       data.adminAttention=attention.filter(([,count])=>count>0).map(([label,count,target,tab])=>({label,count,target,tab}));
-      renderAdminClaims();renderPremiumClaims();renderCommunityXpClaims();renderAdminStaff();renderAdminModerators();renderMembers();updateNotificationBadge();
+      renderAdminClaims();renderPremiumClaims();renderCommunityXpClaims();renderAdminStaff();renderAdminModerators();renderAdminMembers(document.getElementById('admin-member-search')?.value||'');renderMembers();renderSanctions();updateNotificationBadge();
     }catch(error){console.warn('Admin data refresh failed:',error.message);}
   }
   function num(n) { return Number(n || 0).toLocaleString('en-GB'); }
@@ -141,6 +152,17 @@
     const days = Math.floor(hours / 24);
     if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
     return new Date(value).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  }
+  async function refreshWeeklyLeaderboard() {
+    const hosts=[document.getElementById('home-weekly-leaderboard'),document.getElementById('arcade-weekly-leaderboard')].filter(Boolean);
+    if(!hosts.length)return;
+    if(!databaseMode){hosts.forEach(host=>host.innerHTML='<div class="empty-state">Live weekly rankings appear here after database sign-in is enabled.</div>');return;}
+    hosts.forEach(host=>host.innerHTML='<div class="empty-state">Loading live rankings…</div>');
+    try{
+      const backend=await window.VABackendReady,rows=await backend.weeklyXpLeaderboard(10);
+      const markup=rows.length?rows.map((row,index)=>`<div class="leader-row"><span class="leader-place ${index===0?'first':index===1?'second':''}">${String(row.place||index+1).padStart(2,'0')}</span><span class="avatar ${['avatar-cyan','avatar-purple','avatar-amber'][index%3]}">${esc(String(row.username||'P').trim().charAt(0).toUpperCase())}</span><span class="leader-name"><b>${esc(row.username)}</b><small>VOLKS ARCADE · THIS WEEK</small></span><span class="leader-xp">${num(row.weekly_xp)} <small>XP</small></span><span class="leader-badge">✦</span></div>`).join(''):'<div class="empty-state">No public player profiles are available for this ranking.</div>';
+      hosts.forEach(host=>host.innerHTML=markup);
+    }catch(error){console.warn('Weekly rankings could not load:',error.message);hosts.forEach(host=>host.innerHTML='<div class="empty-state">Weekly rankings are temporarily unavailable.</div>');}
   }
   function renderRecentActivity() {
     const host = document.getElementById('home-activity-list');
@@ -205,6 +227,7 @@
       console.warn('Member directory could not load:', error.message);
     }
     renderMembers(query);
+    if(document.getElementById('page-admin')?.classList.contains('active'))renderAdminMembers(document.getElementById('admin-member-search')?.value||'');
   }
   function levelFor(xp) {
     const ranges = [[0,1],[100,2],[250,3],[450,4],[700,5],[1000,6],[1350,7],[1750,8],[2200,9],[2700,10],[3250,11],[3500,12],[3650,13],[3800,14],[3925,15],[4025,16],[4125,17],[4250,18],[5000,19],[6000,20],[7000,21],[8000,22],[9000,23],[10000,24],[11000,25],[12000,26],[13000,27],[14000,28],[15000,29],[16000,30],[17500,31],[19000,32],[20500,33],[22000,34],[23500,35],[25000,36],[26500,37],[28000,38],[29500,39],[31000,40],[32500,41],[34000,42],[35500,43],[37000,44],[38500,45],[40000,46],[41500,47],[43000,48],[44500,49],[46000,50]];
@@ -264,7 +287,8 @@
     if (name === 'community') { renderChallenges(); if(databaseMode&&data.currentUserId)refreshLiveChallenges(); }
     if (name === 'platform') { renderPlatformChat(); if(databaseMode&&data.currentUserId) refreshLiveChat(data.activeChatRoom); }
     if (name === 'profile') updateProfilePage();
-    if (name === 'admin') { renderAdminFactions(); renderAdminClaims(); renderPremiumClaims(); renderCommunityXpClaims(); renderAdminStaff(); renderAdminModerators(); renderAdminNotes(); renderAdminMembers(); applyAdminPermissions(); if(databaseMode&&data.currentUserId){refreshBackendAdminData();refreshAdminChatData();} }
+    if (name === 'home' || name === 'arcade') refreshWeeklyLeaderboard();
+    if (name === 'admin') { if(databaseMode&&can(currentStaffRole(),'manageMembers'))refreshMemberDirectory(); renderAdminFactions(); renderAdminClaims(); renderPremiumClaims(); renderCommunityXpClaims(); renderAdminStaff(); renderAdminModerators(); renderAdminNotes(); renderAdminMembers(); applyAdminPermissions(); if(databaseMode&&data.currentUserId){refreshBackendAdminData();refreshAdminChatData();} }
     if (name === 'premium') { renderPremiumAccess(); renderSupportOptions(); renderPaypalSubscription(); }
     if (name === 'store') renderRewardShop();
   }
@@ -434,6 +458,18 @@
     if (adminAction) {
       if (!can(currentStaffRole(), 'manageMembers')) { showToast('Your staff role cannot manage members.'); return; }
       const id = adminAction.dataset.memberId, current = data.memberOverrides[id] || {};
+      if(databaseMode){
+        const action=adminAction.dataset.adminMemberAction, member=liveMemberDirectory.find(item=>item.name===id);
+        if(['edit','remove'].includes(action)){showToast('Profile editing and account removal are not available in this live staff panel.');return;}
+        if(member&&['warn','suspend','ban','restore'].includes(action)){
+          const card=adminAction.closest('.admin-member-card'), reason=card.querySelector(action==='ban'?'[data-ban-reason]':'[data-sanction-reason]')?.value||'Staff action';
+          const categories=action==='suspend'?[...card.querySelectorAll('[data-sanction-category]:checked')].map(input=>input.value):[];
+          const duration=action==='suspend'?Number(card.querySelector('[data-sanction-duration]')?.value||1):null;
+          try{const backend=await window.VABackendReady;await backend.moderateMember(member.id,action,reason,categories,duration);await refreshBackendAdminData();renderAdminMembers(document.getElementById('admin-member-search')?.value||'');renderSanctions();showToast('Staff action saved for '+member.name+'.');}
+          catch(error){showToast(error.message||'Staff action could not be saved.');}return;
+        }
+      }
+
       if (adminAction.dataset.adminMemberAction === 'edit') { openModal('member', id); return; }
       if (adminAction.dataset.adminMemberAction === 'warn') { current.warnings = (current.warnings || 0) + 1; data.memberOverrides[id] = current; persist(); renderAdminMembers(); showToast(`Warning recorded for ${id}.`); return; }
       if (adminAction.dataset.adminMemberAction === 'suspend' || adminAction.dataset.adminMemberAction === 'ban') { const card=adminAction.closest('.admin-member-card'),action=adminAction.dataset.adminMemberAction,reason=card.querySelector(action==='ban'?'[data-ban-reason]':'[data-sanction-reason]')?.value||'Other';current.status=action==='ban'?'banned':'suspended';current.reason=reason;current.issuedBy=data.profile.display;current.startedAt=new Date().toISOString();if(action==='suspend'){const hours=Number(card.querySelector('[data-sanction-duration]')?.value||1);current.endsAt=new Date(Date.now()+hours*3600000).toISOString();current.durationHours=hours;current.categories=[...card.querySelectorAll('[data-sanction-category]:checked')].map(input=>input.value);if(!current.categories.length)current.categories=['chat'];}else{current.endsAt='';current.categories=[];}data.memberOverrides[id]=current;data.moderationHistory.push({id:`mod-${Date.now()}`,username:id,action:current.status,reason,currentEnd:current.endsAt,categories:current.categories,by:data.profile.display,at:current.startedAt});persist();renderAdminMembers();renderMembers();renderAdminChatReview();showToast(`${id} ${current.status} in this preview.`);return; }
@@ -839,7 +875,8 @@
   function renderAdminMembers(query='') {
     const host = document.getElementById('admin-member-list'); if (!host) return;
     if (!can(currentStaffRole(), 'manageMembers')) { host.innerHTML = '<div class="empty-state">This staff role cannot manage member accounts.</div>'; return; }
-    const list = demoMembers.map(member => ({...member,...(data.memberOverrides[member.name] || {})})).filter(member => `${member.name} ${member.faction} ${member.game}`.toLowerCase().includes(query.toLowerCase()));
+    const source=databaseMode?liveMemberDirectory:demoMembers;
+    const list=source.map(member=>({...member,...(data.memberOverrides[member.name]||{})})).filter(member=>`${member.name} ${member.faction} ${member.game} ${member.rank}`.toLowerCase().includes(query.toLowerCase()));
     host.innerHTML = list.length ? list.map(member => { const removed = data.removedMembers.includes(member.name), staff = staffRecord(member.name),mod=moderatorBadgeFor(member.name),record=data.memberOverrides[member.name]||{},active=isMemberRestricted(member.name); return `<article class="admin-member-card"><div class="admin-member-row"><span class="avatar ${member.color}">${member.initial}</span><span class="admin-member-summary"><b>${esc(member.name)} ${staff ? `<i class="member-staff-badge">${esc(staffBadgeName(staff.role))}</i>` : mod?'<i class="member-staff-badge">COMMUNITY MOD</i>':''}</b><small>${esc(member.faction)} · ${esc(member.game)} · ${esc(member.rank)} · LVL ${member.level} · ${member.warnings || 0} warnings${active ? ` · ${String(record.status||'SUSPENDED').toUpperCase()} ${record.status==='suspended'?timeRemaining(record.endsAt):''}` : ''}${removed ? ' · REMOVED' : ''}</small></span><div class="admin-member-actions"><button data-admin-member-action="edit" data-member-id="${esc(member.name)}">EDIT</button><button data-admin-member-action="warn" data-member-id="${esc(member.name)}">WARN</button><button data-admin-member-action="restore" data-member-id="${esc(member.name)}">RESTORE</button><button data-admin-member-action="remove" data-member-id="${esc(member.name)}">${removed ? 'REINSTATE' : 'REMOVE'}</button></div></div><details class="sanction-controls"><summary>Sanction member</summary><div class="sanction-fields"><label>SUSPENSION LENGTH<select data-sanction-duration="${esc(member.name)}"><option value="1">1 hour</option><option value="12">12 hours</option><option value="72">3 days</option><option value="168">1 week</option></select></label><label>REASON<select data-sanction-reason="${esc(member.name)}"><option>Spam</option><option>Harassment</option><option>Hate or abusive content</option><option>Inappropriate content</option><option>Disruptive behaviour</option><option>Other</option></select></label><fieldset><legend>RESTRICT THESE CATEGORIES</legend><label><input type="checkbox" value="chat" data-sanction-category="${esc(member.name)}" checked> Platform chat</label><label><input type="checkbox" value="premium" data-sanction-category="${esc(member.name)}"> Premium</label><label><input type="checkbox" value="arcade" data-sanction-category="${esc(member.name)}"> Arcade</label><label><input type="checkbox" value="community" data-sanction-category="${esc(member.name)}"> Community</label></fieldset><button type="button" data-admin-member-action="suspend" data-member-id="${esc(member.name)}">SUSPEND SELECTED TIME</button><label>BAN REASON<select data-ban-reason="${esc(member.name)}"><option>Repeated rule violations</option><option>Harassment or threats</option><option>Hate or abusive content</option><option>Spam or malicious activity</option><option>Other</option></select></label><button type="button" class="danger-action" data-admin-member-action="ban" data-member-id="${esc(member.name)}">BAN MEMBER</button></div></details></article>`; }).join('') : '<div class="empty-state">No members match that search.</div>';
     renderSanctions();
   }
@@ -1076,6 +1113,6 @@
   const requestedRoute=location.hash.slice(1);
   if(databaseMode){window.VABackendReady.then(async backend=>{await refreshSiteConfiguration();await refreshRecentSignups();const auth=await backend.currentUser();if(auth.user)await hydrateBackendUser(backend,auth.user);else clearLiveGuestState();update();if(requestedRoute&&document.getElementById(`page-${requestedRoute}`))route(requestedRoute);}).catch(error=>{clearLiveGuestState();update();console.error('Database unavailable:',error);showToast('Account service could not connect: '+(error.message||'check your connection and try again.'));});}
   else if (requestedRoute && document.getElementById(`page-${requestedRoute}`)) route(requestedRoute);
-  update(); renderChallenges(); renderMembers(); renderRecentActivity(); renderHomeCreatorClips(); renderAdminFactions(); renderAdminClaims(); renderPremiumClaims(); renderAdminStaff(); renderAdminMembers(); renderSanctions(); renderAdminChatReview(); applyAdminPermissions();setInterval(()=>{renderSanctions();renderMembers();refreshRecentSignups();if(databaseMode&&data.currentUserId&&can(currentStaffRole(),'manageMembers')&&document.getElementById('page-members')?.classList.contains('active'))refreshMemberDirectory();if(databaseMode&&data.currentUserId&&currentStaffRole())refreshBackendAdminData();},120_000);
+  update(); renderChallenges(); renderMembers(); renderRecentActivity(); renderHomeCreatorClips(); refreshWeeklyLeaderboard(); renderAdminFactions(); renderAdminClaims(); renderPremiumClaims(); renderAdminStaff(); renderAdminMembers(); renderSanctions(); renderAdminChatReview(); applyAdminPermissions();setInterval(()=>{renderSanctions();renderMembers();refreshRecentSignups();if(databaseMode&&data.currentUserId&&can(currentStaffRole(),'manageMembers')&&document.getElementById('page-members')?.classList.contains('active'))refreshMemberDirectory();if(databaseMode&&data.currentUserId&&currentStaffRole())refreshBackendAdminData();},120_000);
 })();
 
