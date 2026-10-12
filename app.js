@@ -43,6 +43,7 @@
       data.economyVersion = 2;
     }
   } catch {}
+  let streakReminderTimer;
   if (databaseMode) clearLiveGuestState();
   data.spendableXp = Math.max(0, Number(data.spendableXp) || 0);
   data.wallet = Math.max(0, Number(data.wallet) || 0);
@@ -55,7 +56,6 @@
   let gameTimeouts = [];
   let reactionTimer;
   let premiumTrialTimer;
-  let streakReminderTimer;
   let liveChatChannel = null;
   let liveChatRoom = '';
   let reactionStarted = 0;
