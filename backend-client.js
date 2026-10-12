@@ -42,6 +42,20 @@
         const result = await client.from('profiles').select('id,username,bio,favorite_games,social_links,avatar_url,banner_url,is_public,show_online').eq('id', userId).single();
         return unwrap(result);
       },
+      async recentSignups(limit = 3) {
+        return unwrap(await client.from('profiles').select('username,created_at,is_public').eq('is_public', true).order('created_at', { ascending: false }).limit(Math.max(1, Math.min(10, Number(limit) || 3))));
+      },
+      async memberDirectory() {
+        return unwrap(await client.from('profiles').select('id,username,bio,favorite_games,avatar_url,is_public,show_online,created_at').eq('is_public', true).order('created_at', { ascending: false }).limit(100));
+      },
+      async memberFactionMemberships(userIds) {
+        if (!userIds.length) return [];
+        return unwrap(await client.from('faction_memberships').select('user_id,faction_id,rank_key,character_name').in('user_id', userIds));
+      },
+      async memberProgress(userIds) {
+        if (!userIds.length) return [];
+        return unwrap(await client.from('xp_wallets').select('user_id,lifetime_xp').in('user_id', userIds));
+      },
       async wallet(userId) {
         const result = await client.from('xp_wallets').select('lifetime_xp,spendable_xp,va_coins').eq('user_id', userId).maybeSingle();
         return unwrap(result);

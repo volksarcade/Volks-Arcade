@@ -17,6 +17,10 @@
   let data = load();
   let siteConfiguration = { siteTitle:'VOLKS ARCADE', tagline:'PLAY · CONNECT · CREATE', status:'online', statusMessage:'', maintenance:{}, broadcasts:{}, featuredVideos:[] };
   let siteConfigurationLoading = false;
+  let recentSignups = [];
+  let recentSignupsState = 'loading';
+  let liveMemberDirectory = [];
+  let liveMemberDirectoryState = 'idle';
   let googleProfileSetupRequired = false;
   // When the live backend is enabled, never render a cached/demo player as a guest.
   // The account and staff state are repopulated only after Supabase confirms a session.
@@ -88,6 +92,8 @@
     data.premiumApplications=support.map(item=>{const entitlement=entitlements.find(row=>row.external_reference===item.id&&row.entitlement_key==='premium');return {id:item.id,username:profile.username,type:item.plan_key||item.category,kind:item.category,platform:item.provider,reference:item.access_code?'Access code submitted':(item.external_reference||'Support submitted for review'),accessCode:item.access_code||'',codeProvided:Boolean(item.access_code),status:item.status==='denied'?'declined':item.status,expiresAt:entitlement?.ends_at||'',durationMonths:/legacy|year/i.test(item.plan_key||'')?12:1,submittedAt:item.created_at};});
     data.communityClaims=communityRows.map(row=>({id:row.id,username:profile.username,missionId:row.mission_key,platform:row.provider,proof:row.proof,xp:Number(row.xp_reward)||0,status:row.status==='denied'?'declined':row.status,submittedAt:row.created_at}));
     persist(); update();
+    refreshRecentSignups();
+    if (document.getElementById('page-members')?.classList.contains('active') && can(role, 'manageMembers')) refreshMemberDirectory();
     if(role||data.moderatorAssignments.length) await refreshBackendAdminData();
     if (googleProfileSetupRequired) openModal('google-profile');
   }
@@ -120,6 +126,82 @@
     }catch(error){console.warn('Admin data refresh failed:',error.message);}
   }
   function num(n) { return Number(n || 0).toLocaleString('en-GB'); }
+  function timeAgo(value) {
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return 'Recently';
+    const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
+    return new Date(value).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  }
+  function renderRecentActivity() {
+    const host = document.getElementById('home-activity-list');
+    if (!host) return;
+    if (recentSignupsState === 'loading') { host.innerHTML = '<div class="empty-state">Loading recent players…</div>'; return; }
+    if (recentSignupsState === 'error') { host.innerHTML = '<div class="empty-state">Recent activity is temporarily unavailable.</div>'; return; }
+    host.innerHTML = recentSignups.length ? recentSignups.slice(0, 3).map((player, index) => `<div class="activity-item"><span class="activity-icon ${index === 0 ? 'red' : index === 1 ? 'purple' : 'gold'}">✦</span><span><b>${esc(player.username)}</b> joined <strong>VOLKS ARCADE</strong><small>${esc(timeAgo(player.created_at))}</small></span></div>`).join('') : '<div class="empty-state">No public player accounts yet. New members will appear here.</div>';
+  }
+  async function refreshRecentSignups() {
+    if (!databaseMode) { recentSignupsState = 'ready'; renderRecentActivity(); return; }
+    try {
+      const backend = await window.VABackendReady;
+      recentSignups = await backend.recentSignups(3);
+      recentSignupsState = 'ready';
+    } catch (error) {
+      recentSignupsState = 'error';
+      console.warn('Recent player activity could not load:', error.message);
+    }
+    renderRecentActivity();
+  }
+  async function refreshMemberDirectory(query = '') {
+    if (!databaseMode || !data.currentUserId || !can(currentStaffRole(), 'manageMembers')) return;
+    liveMemberDirectoryState = 'loading';
+    renderMembers(query);
+    try {
+      const backend = await window.VABackendReady;
+      const profiles = await backend.memberDirectory();
+      const ids = profiles.map(profile => profile.id);
+      const [memberships, progressRows] = await Promise.all([backend.memberFactionMemberships(ids), backend.memberProgress(ids)]);
+      const rankKeys = {
+        'house-volkah':['bekk','la-commander','boq-colonel','sa-general','aj-admiral','council','joh'],
+        ueeif:['recruit','private','sergeant','warrant-officer','major','colonel'],
+        'vampiric-hierarchy':['purebloods','vampire','vampire-general','vampire-lord','royal-vampire','vampire-council','vampire-overlord']
+      };
+      const factionRows = new Map();
+      for (const row of memberships) {
+        const entries = factionRows.get(row.user_id) || [];
+        entries.push(row);
+        factionRows.set(row.user_id, entries);
+      }
+      const xpRows = new Map(progressRows.map(row => [row.user_id, Number(row.lifetime_xp) || 0]));
+      const colors = ['avatar-cyan','avatar-purple','avatar-amber'];
+      liveMemberDirectory = profiles.map((profile, index) => {
+        const xp = xpRows.get(profile.id) || 0;
+        const playerLevel = levelFor(xp).level;
+        const affiliations = (factionRows.get(profile.id) || []).map(row => {
+          const faction = factionCatalog().find(item => item.id === row.faction_id);
+          const rankIndex = rankKeys[row.faction_id]?.indexOf(row.rank_key) ?? -1;
+          return { faction:faction?.name || row.faction_id, game:faction?.game || '', rank:faction?.ranks[rankIndex] || row.rank_key };
+        });
+        return {
+          id:profile.id, name:profile.username, initial:(profile.username[0] || 'P').toUpperCase(), color:colors[index % colors.length],
+          rank:levelTitle(playerLevel), level:playerLevel, faction:affiliations.map(row => row.faction).join(' · ') || 'Independent',
+          game:[...new Set(affiliations.map(row => row.game).filter(Boolean))].join(' · ') || (profile.favorite_games || []).join(' · ') || 'Multi-game',
+          bio:profile.bio || 'Arcade player.', online:Boolean(profile.show_online), createdAt:profile.created_at
+        };
+      });
+      liveMemberDirectoryState = 'ready';
+    } catch (error) {
+      liveMemberDirectory = [];
+      liveMemberDirectoryState = 'error';
+      console.warn('Member directory could not load:', error.message);
+    }
+    renderMembers(query);
+  }
   function levelFor(xp) {
     const ranges = [[0,1],[100,2],[250,3],[450,4],[700,5],[1000,6],[1350,7],[1750,8],[2200,9],[2700,10],[3250,11],[3500,12],[3650,13],[3800,14],[3925,15],[4025,16],[4125,17],[4250,18],[5000,19],[6000,20],[7000,21],[8000,22],[9000,23],[10000,24],[11000,25],[12000,26],[13000,27],[14000,28],[15000,29],[16000,30],[17500,31],[19000,32],[20500,33],[22000,34],[23500,35],[25000,36],[26500,37],[28000,38],[29500,39],[31000,40],[32500,41],[34000,42],[35500,43],[37000,44],[38500,45],[40000,46],[41500,47],[43000,48],[44500,49],[46000,50]];
     let level = 1, floor = 0, ceiling = 100;
@@ -174,7 +256,7 @@
     history.replaceState(null, '', `#${name}`);
     closeSidebar();
     window.scrollTo({ top: 0, behavior: data.settings.reducedMotion ? 'instant' : 'smooth' });
-    if (name === 'members') renderMembers();
+    if (name === 'members') { renderMembers(); if(databaseMode&&data.currentUserId)refreshMemberDirectory(); }
     if (name === 'community') renderChallenges();
     if (name === 'platform') { renderPlatformChat(); if(databaseMode&&data.currentUserId) refreshLiveChat(data.activeChatRoom); }
     if (name === 'profile') updateProfilePage();
@@ -586,7 +668,7 @@
       if (latest && latest.characterName === characterName && latest.claimedRank === claimedRank && latest.status !== 'declined') return;
       data.factionClaims.push({ claimId:`claim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`, username:p.display, factionId:faction.id, factionName:faction.name, game:faction.game, characterName, claimedRank, status:'pending', submittedAt:new Date().toISOString() });
     });
-    const commit = async () => { if(databaseMode){try{const backend=await window.VABackendReady;if(!data.currentUserId)throw new Error('Sign in before saving your profile.');await backend.saveProfile(data.currentUserId,{username:p.display,bio:p.bio,favorite_games:String(p.favoriteGames||'').split(',').map(game=>game.trim()).filter(Boolean).slice(0,12),social_links:{discord:p.discord,twitch:p.twitch,kick:p.kick,youtube:p.youtube,steam:p.steam,tiktok:p.tiktok,instagram:p.instagram},is_public:p.public,show_online:p.online});}catch(error){showToast('Profile could not be saved: '+(error.message||'Please try again.'));return;}}persist(); update(); closeModal(); showToast(databaseMode?'Player profile saved to your account.':'Player profile saved to this browser.'); };
+    const commit = async () => { if(databaseMode){try{const backend=await window.VABackendReady;if(!data.currentUserId)throw new Error('Sign in before saving your profile.');await backend.saveProfile(data.currentUserId,{username:p.display,bio:p.bio,favorite_games:String(p.favoriteGames||'').split(',').map(game=>game.trim()).filter(Boolean).slice(0,12),social_links:{discord:p.discord,twitch:p.twitch,kick:p.kick,youtube:p.youtube,steam:p.steam,tiktok:p.tiktok,instagram:p.instagram},is_public:p.public,show_online:p.online});}catch(error){showToast('Profile could not be saved: '+(error.message||'Please try again.'));return;}}persist(); update(); if(databaseMode){refreshRecentSignups();if(can(currentStaffRole(),'manageMembers'))refreshMemberDirectory();} closeModal(); showToast(databaseMode?'Player profile saved to your account.':'Player profile saved to this browser.'); };
     const uploads=[['avatar-file','avatar',true],['profile-logo-file','logo',ownsReward(rewardCatalog.find(item=>item.id==='custom-logo-slot'))],['profile-banner-file','banner',ownsReward(rewardCatalog.find(item=>item.id==='custom-banner-slot'))]].map(([id,key,unlocked])=>({file:document.getElementById(id)?.files?.[0],key,unlocked})).filter(item=>item.file&&item.unlocked);
     if(databaseMode&&uploads.length){showToast('Profile image uploads are not connected yet. You can save text and social links now.');return;}
     if(uploads.some(item=>item.file.size>750000)){showToast('Each image must be smaller than 750 KB in this browser preview.');return;}
@@ -623,9 +705,17 @@
     {name:'Ghostbyte',initial:'G',color:'avatar-amber',rank:'Elite',faction:'Order of Ash',level:20,game:'Crusader Kings III',bio:'Strategist first, chaos gremlin second.',online:true}
   ];
   function renderMembers(query='') {
-    const ownFactionNames=[...new Set((data.factionClaims||[]).filter(claim=>claim.username?.toLowerCase()===data.profile.display.toLowerCase()&&claim.status==='approved').map(claim=>claim.factionName))];const selfCard={name:data.profile.display,initial:(data.profile.display[0]||'V').toUpperCase(),color:'avatar-volk',rank:levelTitle(progress().level),faction:ownFactionNames.join(' · ')||'Independent',level:progress().level,game:'Multi-game',bio:data.profile.bio||'Arcade player.',online:Boolean(data.profile.online),wallet:data.wallet};const roster=[...(data.profile.public&&data.settings.profilePublic?[selfCard]:[]),...demoMembers.filter(m=>m.name.toLowerCase()!==data.profile.display.toLowerCase())].map(m=>({...m,...(data.memberOverrides[m.name]||{})}));const list=roster.filter(m=>!isMemberRestricted(m.name)&&!data.removedMembers.includes(m.name)&&`${m.name} ${m.faction} ${m.game} ${m.rank}`.toLowerCase().includes(query.toLowerCase()));
-    document.getElementById('member-grid').innerHTML = list.length ? list.map(m => { const staff = staffRecord(m.name), supporter=premiumApplicationFor(m.name),coins=Number(data.memberWallets?.[m.name]??m.wallet??0); const badge = staff ? `<span class="member-staff-badge">⬟ ${esc(staffBadgeName(staff.role))}</span>` : moderatorBadgeFor(m.name)?`<span class="member-staff-badge">⬟ COMMUNITY MOD</span>`:''; const supportBadge=supporter?.status==='approved'?`<span class="member-staff-badge supporter-badge">${esc(supporter.type)}</span>`:''; return `<article class="member-card"><div class="member-card-head"><span class="avatar ${m.color}">${m.initial}</span><span class="member-card-name"><b>${esc(m.name)} ${badge}${supportBadge}</b><small>LEVEL ${m.level} · ${esc(m.rank.toUpperCase())}</small></span>${m.online?'<i class="member-online" title="Online"></i>':''}</div><p>${esc(m.bio)}</p><div class="member-card-tags"><span>${esc(m.game)}</span><span>${esc(m.faction)}</span></div><div class="member-card-wallet"><span>◈</span> ${num(coins)} VA COINS</div><div class="member-card-foot"><span>${m.online?'ONLINE NOW':'RECENTLY ACTIVE'}</span><button class="text-link" data-chat-room="global">JOIN CHAT ↗</button></div></article>`; }).join('') : '<div class="empty-state">No sample profiles match that search.</div>';
-    const foot=document.querySelector('.members-foot span');if(foot)foot.textContent=`SHOWING ${list.length} ${list.length===1?'PROFILE':'PROFILES'} · LOCAL PREVIEW`;
+    const selfFactionNames=[...new Set((data.factionClaims||[]).filter(claim=>claim.username?.toLowerCase()===data.profile.display.toLowerCase()&&claim.status==='approved').map(claim=>claim.factionName))];
+    const selfCard={name:data.profile.display,initial:(data.profile.display[0]||'V').toUpperCase(),color:'avatar-volk',rank:levelTitle(progress().level),faction:selfFactionNames.join(' · ')||'Independent',level:progress().level,game:'Multi-game',bio:data.profile.bio||'Arcade player.',online:Boolean(data.profile.online)};
+    const localRoster=[...(data.profile.public&&data.settings.profilePublic?[selfCard]:[]),...demoMembers.filter(m=>m.name.toLowerCase()!==data.profile.display.toLowerCase())].map(m=>({...m,...(data.memberOverrides[m.name]||{})}));
+    const roster=databaseMode?liveMemberDirectory:localRoster;
+    const list=roster.filter(m=>!isMemberRestricted(m.name)&&!data.removedMembers.includes(m.name)&&`${m.name} ${m.faction} ${m.game} ${m.rank}`.toLowerCase().includes(query.toLowerCase()));
+    const grid=document.getElementById('member-grid');
+    if(databaseMode&&liveMemberDirectoryState==='loading')grid.innerHTML='<div class="empty-state">Loading player accounts…</div>';
+    else if(databaseMode&&liveMemberDirectoryState==='error')grid.innerHTML='<div class="empty-state">Player accounts could not load. Please refresh and try again.</div>';
+    else grid.innerHTML=list.length?list.map(m=>{const staff=staffRecord(m.name),badge=staff?`<span class="member-staff-badge">⬟ ${esc(staffBadgeName(staff.role))}</span>`:moderatorBadgeFor(m.name)?'<span class="member-staff-badge">⬟ COMMUNITY MOD</span>':'';const support=premiumApplicationFor(m.name),supportBadge=support?.status==='approved'?`<span class="member-staff-badge supporter-badge">${esc(support.type)}</span>`:'';return `<article class="member-card"><div class="member-card-head"><span class="avatar ${esc(m.color||'avatar-cyan')}">${esc(m.initial||m.name[0]||'P')}</span><span class="member-card-name"><b>${esc(m.name)} ${badge}${supportBadge}</b><small>LEVEL ${m.level} · ${esc(String(m.rank||'PLAYER').toUpperCase())}</small></span>${m.online?'<i class="member-online" title="Online"></i>':''}</div><p>${esc(m.bio||'Arcade player.')}</p><div class="member-card-tags"><span>${esc(m.game||'Multi-game')}</span><span>${esc(m.faction||'Independent')}</span></div><div class="member-card-foot"><span>${databaseMode?`JOINED ${esc(timeAgo(m.createdAt))}`:m.online?'ONLINE NOW':'RECENTLY ACTIVE'}</span><button class="text-link" data-chat-room="global">JOIN CHAT ↗</button></div></article>`;}).join(''):'<div class="empty-state">No public player accounts match that search.</div>';
+    const intro=document.querySelector('#page-members .page-intro .eyebrow');if(intro)intro.innerHTML=`<i></i> PLAYER NETWORK // ${databaseMode?liveMemberDirectory.length:'SAMPLE'} ${databaseMode?'PUBLIC ACCOUNTS':'DEMO'}`;
+    const foot=document.querySelector('.members-foot span');if(foot)foot.textContent=databaseMode?`${liveMemberDirectory.length} PUBLIC PROFILES · PRIVATE WALLETS HIDDEN`:`SHOWING ${list.length} SAMPLE PROFILES`;
   }
   document.getElementById('member-search').addEventListener('input', e => renderMembers(e.target.value));
   document.getElementById('member-grid').addEventListener('click', e => { if(e.target.closest('[data-chat-room]')){data.activeChatRoom='global';route('platform');} });
@@ -741,7 +831,7 @@
     const host = document.getElementById('admin-member-list'); if (!host) return;
     if (!can(currentStaffRole(), 'manageMembers')) { host.innerHTML = '<div class="empty-state">This staff role cannot manage member accounts.</div>'; return; }
     const list = demoMembers.map(member => ({...member,...(data.memberOverrides[member.name] || {})})).filter(member => `${member.name} ${member.faction} ${member.game}`.toLowerCase().includes(query.toLowerCase()));
-    host.innerHTML = list.length ? list.map(member => { const removed = data.removedMembers.includes(member.name), staff = staffRecord(member.name),mod=moderatorBadgeFor(member.name),record=data.memberOverrides[member.name]||{},active=isMemberRestricted(member.name),coins=Number(data.memberWallets?.[member.name]??member.wallet??0); return `<article class="admin-member-card"><div class="admin-member-row"><span class="avatar ${member.color}">${member.initial}</span><span class="admin-member-summary"><b>${esc(member.name)} ${staff ? `<i class="member-staff-badge">${esc(staffBadgeName(staff.role))}</i>` : mod?'<i class="member-staff-badge">COMMUNITY MOD</i>':''}</b><small>${esc(member.faction)} · ${esc(member.game)} · ${esc(member.rank)} · LVL ${member.level} · ${num(coins)} VA COINS · ${member.warnings || 0} warnings${active ? ` · ${String(record.status||'SUSPENDED').toUpperCase()} ${record.status==='suspended'?timeRemaining(record.endsAt):''}` : ''}${removed ? ' · REMOVED' : ''}</small></span><div class="admin-member-actions"><button data-admin-member-action="edit" data-member-id="${esc(member.name)}">EDIT</button><button data-admin-member-action="warn" data-member-id="${esc(member.name)}">WARN</button><button data-admin-member-action="restore" data-member-id="${esc(member.name)}">RESTORE</button><button data-admin-member-action="remove" data-member-id="${esc(member.name)}">${removed ? 'REINSTATE' : 'REMOVE'}</button></div></div><details class="sanction-controls"><summary>Sanction member</summary><div class="sanction-fields"><label>SUSPENSION LENGTH<select data-sanction-duration="${esc(member.name)}"><option value="1">1 hour</option><option value="12">12 hours</option><option value="72">3 days</option><option value="168">1 week</option></select></label><label>REASON<select data-sanction-reason="${esc(member.name)}"><option>Spam</option><option>Harassment</option><option>Hate or abusive content</option><option>Inappropriate content</option><option>Disruptive behaviour</option><option>Other</option></select></label><fieldset><legend>RESTRICT THESE CATEGORIES</legend><label><input type="checkbox" value="chat" data-sanction-category="${esc(member.name)}" checked> Platform chat</label><label><input type="checkbox" value="premium" data-sanction-category="${esc(member.name)}"> Premium</label><label><input type="checkbox" value="arcade" data-sanction-category="${esc(member.name)}"> Arcade</label><label><input type="checkbox" value="community" data-sanction-category="${esc(member.name)}"> Community</label></fieldset><button type="button" data-admin-member-action="suspend" data-member-id="${esc(member.name)}">SUSPEND SELECTED TIME</button><label>BAN REASON<select data-ban-reason="${esc(member.name)}"><option>Repeated rule violations</option><option>Harassment or threats</option><option>Hate or abusive content</option><option>Spam or malicious activity</option><option>Other</option></select></label><button type="button" class="danger-action" data-admin-member-action="ban" data-member-id="${esc(member.name)}">BAN MEMBER</button></div></details></article>`; }).join('') : '<div class="empty-state">No members match that search.</div>';
+    host.innerHTML = list.length ? list.map(member => { const removed = data.removedMembers.includes(member.name), staff = staffRecord(member.name),mod=moderatorBadgeFor(member.name),record=data.memberOverrides[member.name]||{},active=isMemberRestricted(member.name); return `<article class="admin-member-card"><div class="admin-member-row"><span class="avatar ${member.color}">${member.initial}</span><span class="admin-member-summary"><b>${esc(member.name)} ${staff ? `<i class="member-staff-badge">${esc(staffBadgeName(staff.role))}</i>` : mod?'<i class="member-staff-badge">COMMUNITY MOD</i>':''}</b><small>${esc(member.faction)} · ${esc(member.game)} · ${esc(member.rank)} · LVL ${member.level} · ${member.warnings || 0} warnings${active ? ` · ${String(record.status||'SUSPENDED').toUpperCase()} ${record.status==='suspended'?timeRemaining(record.endsAt):''}` : ''}${removed ? ' · REMOVED' : ''}</small></span><div class="admin-member-actions"><button data-admin-member-action="edit" data-member-id="${esc(member.name)}">EDIT</button><button data-admin-member-action="warn" data-member-id="${esc(member.name)}">WARN</button><button data-admin-member-action="restore" data-member-id="${esc(member.name)}">RESTORE</button><button data-admin-member-action="remove" data-member-id="${esc(member.name)}">${removed ? 'REINSTATE' : 'REMOVE'}</button></div></div><details class="sanction-controls"><summary>Sanction member</summary><div class="sanction-fields"><label>SUSPENSION LENGTH<select data-sanction-duration="${esc(member.name)}"><option value="1">1 hour</option><option value="12">12 hours</option><option value="72">3 days</option><option value="168">1 week</option></select></label><label>REASON<select data-sanction-reason="${esc(member.name)}"><option>Spam</option><option>Harassment</option><option>Hate or abusive content</option><option>Inappropriate content</option><option>Disruptive behaviour</option><option>Other</option></select></label><fieldset><legend>RESTRICT THESE CATEGORIES</legend><label><input type="checkbox" value="chat" data-sanction-category="${esc(member.name)}" checked> Platform chat</label><label><input type="checkbox" value="premium" data-sanction-category="${esc(member.name)}"> Premium</label><label><input type="checkbox" value="arcade" data-sanction-category="${esc(member.name)}"> Arcade</label><label><input type="checkbox" value="community" data-sanction-category="${esc(member.name)}"> Community</label></fieldset><button type="button" data-admin-member-action="suspend" data-member-id="${esc(member.name)}">SUSPEND SELECTED TIME</button><label>BAN REASON<select data-ban-reason="${esc(member.name)}"><option>Repeated rule violations</option><option>Harassment or threats</option><option>Hate or abusive content</option><option>Spam or malicious activity</option><option>Other</option></select></label><button type="button" class="danger-action" data-admin-member-action="ban" data-member-id="${esc(member.name)}">BAN MEMBER</button></div></details></article>`; }).join('') : '<div class="empty-state">No members match that search.</div>';
     renderSanctions();
   }
   function applyAdminPermissions() {
@@ -908,6 +998,12 @@
     {platform:'youtube',url:'https://www.youtube.com/shorts/ikOD4lEnlUI',title:"I don't like you're Face!!"},
     {platform:'youtube',url:'https://www.youtube.com/shorts/0TZ1jnQT58o',title:"KCD Yhh Don't ask me to pronounce this"}
   ];
+  function renderHomeCreatorClips() {
+    const host=document.getElementById('home-creator-clips');if(!host)return;
+    const source=Array.isArray(siteConfiguration.featuredVideos)&&siteConfiguration.featuredVideos.length?siteConfiguration.featuredVideos:defaultFeaturedVideos;
+    const clips=source.map(item=>{const video=parseCreatorVideo(item.url);return video?{...video,title:String(item.title||'Volks Arcade creator clip').slice(0,80)}:null;}).filter(Boolean).slice(0,3);
+    host.innerHTML=clips.map((clip,index)=>clip.platform==='youtube'?`<button class="home-clip-tile" type="button" data-go="content" aria-label="Open Content to watch ${esc(clip.title)}"><img src="https://i.ytimg.com/vi/${clip.id}/mqdefault.jpg" alt="" loading="lazy"><span class="home-clip-play">▶</span><small>YT · ${String(index+1).padStart(2,'0')}</small></button>`:`<button class="home-clip-tile home-clip-tiktok" type="button" data-go="content" aria-label="Open Content to watch TikTok clips"><span>♪</span><small>TIKTOK · ${String(index+1).padStart(2,'0')}</small></button>`).join('')||'<div class="home-clip-empty">New clips will appear here.</div>';
+  }
   function parseCreatorVideo(raw){
     try{const url=new URL(String(raw||'').trim());if(url.protocol!=='https:')return null;const host=url.hostname.toLowerCase();if(host==='youtu.be'||host.endsWith('youtube.com')){const id=host==='youtu.be'?url.pathname.split('/').filter(Boolean)[0]:(url.searchParams.get('v')||url.pathname.match(/\/(?:shorts|embed|live)\/([\w-]{11})/)?.[1]);return id&&/^[\w-]{11}$/.test(id)?{platform:'youtube',url:`https://www.youtube.com/watch?v=${id}`,id}:null;}if(host==='tiktok.com'||host.endsWith('.tiktok.com')){const match=url.pathname.match(/\/@[\w.-]+\/video\/(\d+)/);return match?{platform:'tiktok',url:`https://www.tiktok.com${url.pathname}`,id:match[1]}:null;}}catch{}return null;
   }
@@ -947,6 +1043,7 @@
     const videoCards=videos.map((item,index)=>item.platform==='youtube'?`<article class="creator-video-card"><div class="creator-video-embed"><iframe src="https://www.youtube-nocookie.com/embed/${item.id}" title="${esc(item.title)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div><span class="creator-video-label">YOUTUBE // ${index<3?'FEATURED':'CREATOR CLIP'}</span><h3>${esc(item.title)}</h3><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">WATCH ON YOUTUBE ↗</a></article>`:`<article class="creator-video-card tiktok-video-card"><div class="tiktok-video-embed"><blockquote class="tiktok-embed" cite="${esc(item.url)}" data-video-id="${esc(item.id)}"><section><a target="_blank" rel="noopener noreferrer" href="${esc(item.url)}">View this Volks Arcade TikTok</a></section></blockquote></div><span class="creator-video-label">TIKTOK // CREATOR CLIP</span><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">WATCH ON TIKTOK ↗</a></article>`).join('');
     host.innerHTML=`<section class="creator-channel-hub" aria-labelledby="creator-channels-title"><div class="creator-hub-heading"><div><span class="eyebrow">CREATOR CHANNELS // VOLK</span><h2 id="creator-channels-title">Watch <em>wherever you are.</em></h2></div><span class="creator-feed-status">${live.length?`${live.length} CHANNEL${live.length===1?'':'S'} MARKED LIVE`:'LIVE STATUS SET BY OWNER'}</span></div><div class="creator-channel-grid">${platforms.map(item=>`<a class="creator-channel-card creator-${item.key}" href="${item.url}" target="_blank" rel="noopener noreferrer"><span class="creator-channel-icon" aria-hidden="true">${item.icon}</span><span><b>${item.name}</b><small>${siteConfiguration.broadcasts?.[item.key]?'● LIVE NOW · OWNER UPDATED':'Open channel'}</small></span><span class="creator-channel-arrow">↗</span></a>`).join('')}</div>${livePlayers?`<div class="broadcast-player-grid">${livePlayers}</div>`:''}${live.some(item=>['youtube','tiktok'].includes(item.key))?`<div class="broadcast-live-links">${live.filter(item=>['youtube','tiktok'].includes(item.key)).map(item=>`<a class="live-pill" href="${item.url}" target="_blank" rel="noopener noreferrer"><i></i> WATCH ${item.name.toUpperCase()} LIVE ↗</a>`).join('')}</div>`:''}<p class="creator-feed-note">Live badges are set by the owner. Automatic live detection is not connected yet.</p></section><section class="creator-video-hub" aria-label="Embedded creator videos"><div class="creator-hub-heading"><div><span class="eyebrow">CREATOR LIBRARY</span><h2>Videos from <em>Volks Arcade.</em></h2></div><span class="creator-feed-status">EMBEDDED VIDEOS · NO INVENTED COUNTS</span></div><div class="creator-video-grid">${videoCards||'<article class="creator-video-card"><h3>No clips added yet</h3><p>Add direct YouTube or TikTok video links in the Owner tab of Admin Preview.</p></article>'}</div><div class="creator-popular-links"><a href="https://www.youtube.com/@VolksArcade/videos" target="_blank" rel="noopener noreferrer"><span class="creator-channel-icon">▶</span><span><b>More YouTube uploads</b><small>Open the Volks Arcade video library</small></span><span class="creator-channel-arrow">↗</span></a><a href="https://www.tiktok.com/@volksarcade0" target="_blank" rel="noopener noreferrer"><span class="creator-channel-icon">♪</span><span><b>More TikTok clips</b><small>Open the Volks Arcade profile</small></span><span class="creator-channel-arrow">↗</span></a></div><p class="creator-feed-note">These are embedded player links. View counts and upload order are not pulled automatically; use the Owner controls to choose featured videos.</p></section>`;
     const videoGrid=host.querySelector('.creator-video-grid');if(videoGrid)videoGrid.insertAdjacentHTML('beforeend',`<article class="creator-video-card tiktok-profile-card"><span class="creator-video-label">TIKTOK // LATEST CREATOR POSTS</span><h3>Recent clips from @volksarcade0</h3><div class="tiktok-profile-embed"><blockquote class="tiktok-embed" cite="https://www.tiktok.com/@volksarcade0" data-unique-id="volksarcade0" data-embed-type="creator"><section><a target="_blank" rel="noopener noreferrer" href="https://www.tiktok.com/@volksarcade0?refer=creator_embed">@volksarcade0 on TikTok</a></section></blockquote></div><a href="https://www.tiktok.com/@volksarcade0" target="_blank" rel="noopener noreferrer">OPEN TIKTOK ↗</a></article>`);
+    renderHomeCreatorClips();
     if(videos.some(item=>item.platform==='tiktok')||videoGrid){document.getElementById('va-tiktok-embed-script')?.remove();const script=document.createElement('script');script.id='va-tiktok-embed-script';script.async=true;script.src='https://www.tiktok.com/embed.js';document.body.appendChild(script);}
   }
   renderCreatorFeed();
@@ -968,8 +1065,8 @@
   document.getElementById('page-socials').insertAdjacentHTML('beforeend', `<section class="community-xp-panel panel-card"><div class="card-title-row"><div><span class="eyebrow">PLAY · CONNECT · CREATE</span><h3>Community XP missions</h3></div><span class="preview-chip">ONE-TIME REWARDS</span></div><p>Submit a claim after you join or follow. An admin checks it before the XP is added to your global level.</p><div id="community-xp-missions-list" class="community-xp-mission-grid"></div><small class="demo-note">This preview uses manual staff review. Live Discord and social verification requires connected account services.</small></section>`);
   document.getElementById('community-xp-missions-list').addEventListener('submit',async e=>{const form=e.target.closest('[data-community-claim]');if(!form)return;e.preventDefault();const mission=communityMissionCatalog().find(item=>item.id===form.dataset.communityClaim),proof=String(new FormData(form).get('proof')||'').trim();if(!mission||!proof)return;const previous=[...(data.communityClaims||[])].reverse().find(item=>item.username.toLowerCase()===data.profile.display.toLowerCase()&&item.missionId===mission.id);if(previous&&['pending','approved'].includes(previous.status)){showToast('This mission is already claimed or complete.');return;}if(databaseMode){try{const backend=await window.VABackendReady;await backend.submitCommunityXpClaim({user_id:data.currentUserId,mission_key:mission.id,provider:mission.platform,proof,xp_reward:mission.xp});data.communityClaims.push({id:`claim-${Date.now()}`,username:data.profile.display,missionId:mission.id,platform:mission.platform,proof,xp:mission.xp,status:'pending',submittedAt:new Date().toISOString()});renderCommunityMissions();showToast(`${mission.platform} XP claim sent for staff review.`);}catch(error){showToast(error.message||'Community XP claim could not be saved.');}return;}data.communityClaims.push({id:`community-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,username:data.profile.display,missionId:mission.id,platform:mission.platform,proof,xp:mission.xp,status:'pending',submittedAt:new Date().toISOString()});persist();renderCommunityMissions();showToast(`${mission.platform} XP claim sent for staff review.`);});
   const requestedRoute=location.hash.slice(1);
-  if(databaseMode){window.VABackendReady.then(async backend=>{await refreshSiteConfiguration();const auth=await backend.currentUser();if(auth.user)await hydrateBackendUser(backend,auth.user);else clearLiveGuestState();update();if(requestedRoute&&document.getElementById(`page-${requestedRoute}`))route(requestedRoute);}).catch(error=>{clearLiveGuestState();update();console.error('Database unavailable:',error);showToast('Account service could not connect: '+(error.message||'check your connection and try again.'));});}
+  if(databaseMode){window.VABackendReady.then(async backend=>{await refreshSiteConfiguration();await refreshRecentSignups();const auth=await backend.currentUser();if(auth.user)await hydrateBackendUser(backend,auth.user);else clearLiveGuestState();update();if(requestedRoute&&document.getElementById(`page-${requestedRoute}`))route(requestedRoute);}).catch(error=>{clearLiveGuestState();update();console.error('Database unavailable:',error);showToast('Account service could not connect: '+(error.message||'check your connection and try again.'));});}
   else if (requestedRoute && document.getElementById(`page-${requestedRoute}`)) route(requestedRoute);
-  update(); renderChallenges(); renderMembers(); renderAdminFactions(); renderAdminClaims(); renderPremiumClaims(); renderAdminStaff(); renderAdminMembers(); renderSanctions(); renderAdminChatReview(); applyAdminPermissions();setInterval(()=>{renderSanctions();renderMembers();if(databaseMode&&data.currentUserId&&currentStaffRole())refreshBackendAdminData();},120_000);
+  update(); renderChallenges(); renderMembers(); renderRecentActivity(); renderHomeCreatorClips(); renderAdminFactions(); renderAdminClaims(); renderPremiumClaims(); renderAdminStaff(); renderAdminMembers(); renderSanctions(); renderAdminChatReview(); applyAdminPermissions();setInterval(()=>{renderSanctions();renderMembers();refreshRecentSignups();if(databaseMode&&data.currentUserId&&can(currentStaffRole(),'manageMembers')&&document.getElementById('page-members')?.classList.contains('active'))refreshMemberDirectory();if(databaseMode&&data.currentUserId&&currentStaffRole())refreshBackendAdminData();},120_000);
 })();
 

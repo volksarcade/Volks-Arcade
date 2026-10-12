@@ -174,4 +174,15 @@ body:not(.staff-authorized) #page-admin { display: none !important; }
 body:not(.staff-authorized) #page-members { display: none !important; }
 body:not(.account-authorized) #page-platform { display: none !important; }
 .google-auth-button,.auth-resend-button{display:block;width:min(330px,100%);min-height:36px;margin:0 auto 7px;padding:8px 12px;border:1px solid #41434d;border-radius:5px;background:#f5f6f8;color:#202127;font-size:10px;font-weight:700;cursor:pointer}.google-auth-button:hover,.auth-resend-button:hover{border-color:#a9acb5;background:#fff}.auth-google-note{display:block;margin:0 auto 10px;color:#838894;font-size:7px;line-height:1.5}.auth-resend-button{min-height:30px;background:#1b1d24;color:#c6c8d0;font:8px var(--mono)}.auth-resend-button:disabled{opacity:.55;cursor:wait}
+/* Compact, clickable creator previews on the home dashboard. */
+.home-creator-clips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0 15px}
+.home-clip-tile{position:relative;display:block;min-width:0;aspect-ratio:16/10;padding:0;overflow:hidden;border:1px solid #34313a;border-radius:5px;background:#19141a;cursor:pointer}
+.home-clip-tile img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .2s ease,filter .2s ease}
+.home-clip-tile:hover img{transform:scale(1.06);filter:brightness(.8)}
+.home-clip-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:#f04b4ddd;color:#fff;font-size:11px;box-shadow:0 3px 14px #0009}
+.home-clip-tile small{position:absolute;left:5px;bottom:5px;padding:3px 4px;border-radius:3px;background:#08090ccc;color:#f2d4d4;font:6px var(--mono);letter-spacing:.06em}
+.home-clip-tiktok{display:grid;place-items:center;background:radial-gradient(circle at 70% 35%,#5d232e,#17141b 65%);color:#ff777e;font-size:29px}
+.home-clip-empty{grid-column:1/-1;min-height:62px;display:grid;place-items:center;border:1px dashed #39323a;border-radius:5px;color:#96909a;font-size:9px}
+.activity-list .empty-state{padding:13px 4px;text-align:left;line-height:1.5}
+.member-card-wallet{display:none}
 
