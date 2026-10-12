@@ -105,6 +105,21 @@
         }
         return this.saveStaffAssignment(userId, 'moderator', scopes, assignedBy);
       },
+      async uploadProfileImage(userId, slot, file) {
+        const extensions = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp' };
+        const extension = extensions[file?.type];
+        if (!['logo','banner'].includes(slot) || !extension) throw new Error('Choose a PNG, JPG or WebP image.');
+        if (file.size > 2097152) throw new Error('Images must be 2 MB or smaller.');
+        const auth = await client.auth.getUser();
+        if (auth.error) throw auth.error;
+        if (!auth.data.user || auth.data.user.id !== userId) throw new Error('Sign in to the account that owns this profile.');
+        const path = `${userId}/profile-${slot}.${extension}`;
+        const bucket = client.storage.from('va-profile-media');
+        const uploaded = await bucket.upload(path, file, { cacheControl:'3600', upsert:true, contentType:file.type });
+        if (uploaded.error) throw uploaded.error;
+        const publicUrl = bucket.getPublicUrl(path).data.publicUrl;
+        return { path, publicUrl: `${publicUrl}?v=${Date.now()}` };
+      },
       async saveProfile(userId, profile) {
         const result = await client.from('profiles').update(profile).eq('id', userId).select().single();
         return unwrap(result);
