@@ -32,7 +32,7 @@
     data.xp = 0; data.spendableXp = 0; data.wallet = 0; data.level = 1; data.badges = [];
     data.factionClaims = []; data.premiumApplications = []; data.staffAccess = []; data.moderatorAssignments = [];
     data.platformChats = {}; data.activeChatRoom = 'global'; data.notifications = []; data.databaseNotifications=[]; data.playerStreak={current_streak:0,best_streak:0,last_active_day:null,at_risk:false}; if(streakReminderTimer)clearTimeout(streakReminderTimer);
-    data.staffNotes = []; data.moderatorApplications = []; data.communityClaims = [];
+    data.staffNotes = []; data.moderatorApplications = []; data.communityClaims = []; data.adminAttention=[];
     data.memberOverrides = {}; data.memberWallets = {}; data.removedMembers = [];
   }
   try {
@@ -297,6 +297,7 @@
   function updateNotificationBadge() {
     const button=document.getElementById('notification-button'),badge=button?.querySelector('.notification-count');
     if(!button||!badge)return;
+    if(databaseMode&&!data.currentUserId){badge.hidden=true;badge.textContent='0';button.setAttribute('aria-label','Notifications');button.title='Notifications';return;}
     const username=String(data.profile?.display||'').trim().toLowerCase();
     const unread=(data.notifications||[]).filter(note=>note.type==='pin'&&String(note.username||'').trim().toLowerCase()===username&&!note.read).length+(data.databaseNotifications||[]).filter(note=>!note.read_at).length+(data.adminAttention||[]).reduce((total,item)=>total+Number(item.count||0),0);
     badge.textContent=unread>99?'99+':String(unread);
