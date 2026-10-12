@@ -20,12 +20,12 @@ on storage.objects for insert to authenticated
 with check (
   bucket_id = 'va-profile-media'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
-  and split_part(name, '/', 2) ~ '^profile-(logo|banner)\\.(jpg|jpeg|png|webp)$'
+  and split_part(name, '/', 2) ~ '^profile-(logo|banner)\.(jpg|jpeg|png|webp)$'
   and exists (
     select 1 from public.store_purchases p
     where p.user_id = (select auth.uid())
       and p.item_id = case
-        when split_part(name, '/', 2) ~ '^profile-logo\\.' then 'custom-logo-slot'
+        when split_part(name, '/', 2) ~ '^profile-logo\.' then 'custom-logo-slot'
         else 'custom-banner-slot'
       end
   )
@@ -37,12 +37,12 @@ using (bucket_id = 'va-profile-media' and (storage.foldername(name))[1] = (selec
 with check (
   bucket_id = 'va-profile-media'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
-  and split_part(name, '/', 2) ~ '^profile-(logo|banner)\\.(jpg|jpeg|png|webp)$'
+  and split_part(name, '/', 2) ~ '^profile-(logo|banner)\.(jpg|jpeg|png|webp)$'
   and exists (
     select 1 from public.store_purchases p
     where p.user_id = (select auth.uid())
       and p.item_id = case
-        when split_part(name, '/', 2) ~ '^profile-logo\\.' then 'custom-logo-slot'
+        when split_part(name, '/', 2) ~ '^profile-logo\.' then 'custom-logo-slot'
         else 'custom-banner-slot'
       end
   )
