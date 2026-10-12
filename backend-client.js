@@ -42,11 +42,20 @@
         const result = await client.from('profiles').select('id,username,bio,favorite_games,social_links,avatar_url,banner_url,is_public,show_online').eq('id', userId).single();
         return unwrap(result);
       },
+      async weeklyXpLeaderboard(limit = 10) {
+        return unwrap(await client.rpc('weekly_xp_leaderboard', { result_limit: Math.max(1, Math.min(25, Number(limit) || 10)) }));
+      },
+      async moderationActions() {
+        return unwrap(await client.from('moderation_actions').select('id,user_id,moderator_id,action,reason,categories,starts_at,ends_at,created_at').order('created_at', { ascending:false }).limit(250));
+      },
+      async moderateMember(userId, action, reason, categories = [], durationHours = null) {
+        return unwrap(await client.rpc('moderate_member', { p_user_id:userId, p_action:action, p_reason:reason, p_categories:categories, p_duration_hours:durationHours }));
+      },
       async recentSignups(limit = 3) {
         return unwrap(await client.from('profiles').select('username,created_at,is_public').eq('is_public', true).order('created_at', { ascending: false }).limit(Math.max(1, Math.min(10, Number(limit) || 3))));
       },
       async memberDirectory() {
-        return unwrap(await client.from('profiles').select('id,username,bio,favorite_games,avatar_url,is_public,show_online,created_at').eq('is_public', true).order('created_at', { ascending: false }).limit(100));
+        return unwrap(await client.from('profiles').select('id,username,bio,favorite_games,avatar_url,is_public,show_online,created_at').order('created_at', { ascending: false }).limit(100));
       },
       async memberFactionMemberships(userIds) {
         if (!userIds.length) return [];
