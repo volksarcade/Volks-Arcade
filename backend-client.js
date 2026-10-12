@@ -60,6 +60,18 @@
         const result = await client.from('xp_wallets').select('lifetime_xp,spendable_xp,va_coins').eq('user_id', userId).maybeSingle();
         return unwrap(result);
       },
+      async ownedStoreItems(userId) {
+        return unwrap(await client.from('store_purchases').select('item_id,price_coins,created_at').eq('user_id', userId).order('created_at'));
+      },
+      async purchaseStoreItem(itemId) {
+        return unwrap(await client.rpc('purchase_store_item', { p_item_id: itemId }));
+      },
+      async exchangeXp(xp, requestId) {
+        return unwrap(await client.rpc('exchange_spendable_xp', { p_xp: xp, p_request_id: requestId }));
+      },
+      async challengeProgress(userId) {
+        return unwrap(await client.from('challenge_progress').select('cycle_key,progress,completed_at,reward_issued_at').eq('user_id', userId));
+      },
       async staffAssignment(userId) {
         const result = await client.from('staff_assignments').select('role,scopes').eq('user_id', userId).maybeSingle();
         return unwrap(result);
@@ -176,6 +188,18 @@
       async challengeCycles() {
         await client.rpc('ensure_current_challenges');
         return unwrap(await client.from('challenge_cycles').select('*').gte('ends_at', new Date().toISOString()).order('starts_at'));
+      },
+      async staffNotes() {
+        return unwrap(await client.from('staff_notes').select('id,author_id,body,state,created_at,updated_at').order('created_at', { ascending: false }).limit(100));
+      },
+      async addStaffNote(body, authorId) {
+        return unwrap(await client.from('staff_notes').insert({ body, author_id: authorId, state: 'open' }).select('id,author_id,body,state,created_at,updated_at').single());
+      },
+      async updateStaffNote(id, state, updatedBy) {
+        return unwrap(await client.from('staff_notes').update({ state, updated_by: updatedBy, updated_at: new Date().toISOString() }).eq('id', id).select('id,author_id,body,state,created_at,updated_at').single());
+      },
+      async deleteStaffNote(id) {
+        return unwrap(await client.from('staff_notes').delete().eq('id', id));
       }
     };
     window.VABackend = Object.freeze(api);
