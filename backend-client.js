@@ -81,6 +81,13 @@
       async challengeProgress(userId) {
         return unwrap(await client.from('challenge_progress').select('cycle_key,progress,completed_at,reward_issued_at').eq('user_id', userId));
       },
+      async checkDailyStreakReminder() { return unwrap(await client.rpc('check_daily_streak_reminder')); },
+      async notifications(userId) {
+        return unwrap(await client.from('notifications').select('id,kind,title,body,target_url,read_at,created_at').eq('user_id',userId).order('created_at',{ascending:false}).limit(25));
+      },
+      async markNotificationsRead(userId) {
+        return unwrap(await client.from('notifications').update({read_at:new Date().toISOString()}).eq('user_id',userId).is('read_at',null));
+      },
       async staffAssignment(userId) {
         const result = await client.from('staff_assignments').select('role,scopes').eq('user_id', userId).maybeSingle();
         return unwrap(result);
@@ -109,7 +116,7 @@
         const extensions = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp' };
         const extension = extensions[file?.type];
         if (!['logo','banner'].includes(slot) || !extension) throw new Error('Choose a PNG, JPG or WebP image.');
-        if (file.size > 2097152) throw new Error('Images must be 2 MB or smaller.');
+        if (file.size > 2500000) throw new Error('Images must be 2.5 MB or smaller.');
         const auth = await client.auth.getUser();
         if (auth.error) throw auth.error;
         if (!auth.data.user || auth.data.user.id !== userId) throw new Error('Sign in to the account that owns this profile.');
