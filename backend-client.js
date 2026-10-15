@@ -58,7 +58,12 @@
         return unwrap(await client.rpc('public_member_directory'));
       },
       async publicMemberProfile(userId) {
-        return unwrap(await client.rpc('public_member_profile', { p_user_id:userId }));
+        const rows=unwrap(await client.rpc('public_member_profile', { p_user_id:userId }));
+        return Array.isArray(rows)?(rows[0]||null):rows;
+      },
+      async publicMemberProfileByUsername(username) {
+        const rows=unwrap(await client.rpc('public_member_profile_by_username', { p_username:username }));
+        return Array.isArray(rows)?(rows[0]||null):rows;
       },
       async memberFactionMemberships(userIds) {
         if (!userIds.length) return [];
