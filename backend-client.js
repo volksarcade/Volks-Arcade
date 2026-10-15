@@ -55,7 +55,7 @@
         return unwrap(await client.from('profiles').select('username,created_at,is_public').eq('is_public', true).order('created_at', { ascending: false }).limit(Math.max(1, Math.min(10, Number(limit) || 3))));
       },
       async memberDirectory() {
-        return unwrap(await client.from('profiles').select('id,username,bio,favorite_games,avatar_url,is_public,show_online,created_at').order('created_at', { ascending: false }).limit(100));
+        return unwrap(await client.rpc('public_member_directory'));
       },
       async memberFactionMemberships(userIds) {
         if (!userIds.length) return [];
@@ -115,8 +115,8 @@
       async uploadProfileImage(userId, slot, file) {
         const extensions = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp' };
         const extension = extensions[file?.type];
-        if (!['logo','banner'].includes(slot) || !extension) throw new Error('Choose a PNG, JPG or WebP image.');
-        if (file.size > 2500000) throw new Error('Images must be 2.5 MB or smaller.');
+        if (!['logo','avatar','banner'].includes(slot) || !extension) throw new Error('Choose a PNG, JPG or WebP image.');
+        if (file.size > 2800000) throw new Error('Images must be 2.8 MB or smaller.');
         const auth = await client.auth.getUser();
         if (auth.error) throw auth.error;
         if (!auth.data.user || auth.data.user.id !== userId) throw new Error('Sign in to the account that owns this profile.');
