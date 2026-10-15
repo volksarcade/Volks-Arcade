@@ -52,7 +52,7 @@ begin
     where s.month_start=date_trunc('month',timezone('utc',now()))::date
   )
   select r.game_key,r.user_id,r.username,r.best_score,r.avatar_url,
-    coalesce((select max(l.level) from public.level_thresholds l where l.xp_required<=r.lifetime_xp),1)::integer,
+    coalesce((select max(t.level_no)::integer from unnest(array[0,100,250,450,700,1000,1350,1750,2200,2700,3250,3500,3650,3800,3925,4025,4125,4250,5000,6000,7000,8000,9000,10000,11000,12000,13000,14000,15000,16000,17500,19000,20500,22000,23500,25000,26500,28000,29500,31000,32500,34000,35500,37000,38500,40000,41500,43000,44500,46000]::bigint[]) with ordinality as t(xp_required,level_no) where t.xp_required<=r.lifetime_xp),1),
     r.rn
   from ranked r where r.rn<=10
   order by r.game_key,r.rn;
