@@ -834,9 +834,21 @@
   document.getElementById('edit-faves').addEventListener('click', () => openModal('profile'));
 
   const demoMembers = [];
-  function openPublicMemberProfile(id) {
-    const member=liveMemberDirectory.find(item=>String(item.id)===String(id));
-    if(!member)return;
+  async function openPublicMemberProfile(id) {
+    let member=liveMemberDirectory.find(item=>String(item.id)===String(id));
+    if(!member&&databaseMode&&data.currentUserId){
+      try{
+        const backend=await window.VABackendReady;
+        const profile=await backend.publicMemberProfile(id);
+        if(profile?.user_id){
+          const xp=Number(profile.lifetime_xp)||0,level=levelFor(xp).level;
+          const ranks={ 'house-volkah':['bekk','la-commander','boq-colonel','sa-general','aj-admiral','council','joh'], ueeif:['colonel','major','warrant-officer','sergeant','private','recruit'], 'vampiric-hierarchy':['vampire-overlord','vampire-council','royal-vampire','vampire-lord','vampire-general','vampire','purebloods'] };
+          const affiliations=(profile.faction_memberships||[]).map(row=>{const faction=factionCatalog().find(item=>item.id===row.faction_id),rankIndex=ranks[row.faction_id]?.indexOf(row.rank_key)??-1;return {faction:faction?.name||row.faction_id,factionId:row.faction_id,game:faction?.game||'',rank:faction?.ranks[rankIndex]||row.rank_key,isLeader:Boolean(row.is_leader)};});
+          member={id:profile.user_id,name:profile.username,initial:(profile.username?.[0]||'P').toUpperCase(),color:'avatar-cyan',avatar:profile.avatar_url||'',level,xp,faction:affiliations.map(row=>row.faction).join(' · ')||'Independent',factionMemberships:affiliations,game:(profile.favorite_games||[]).join(' · ')||'Multi-game',favoriteGames:Array.isArray(profile.favorite_games)?profile.favorite_games:[],bio:profile.bio||'Arcade player.',online:Boolean(profile.show_online)};
+        }
+      }catch(error){console.warn('Public player profile could not load:',error.message);}
+    }
+    if(!member){showToast('This player’s profile is private or unavailable.');return;}
     const back=document.getElementById('modal-backdrop'),title=document.getElementById('modal-title'),eye=document.getElementById('modal-eyebrow'),body=document.getElementById('modal-body');
     const level=levelFor(Number(member.xp)||0),percent=Math.max(0,Math.min(100,Math.round(((Number(member.xp)||0)-level.floor)/Math.max(1,level.ceiling-level.floor)*100)));
     const factions=(member.factionMemberships||[]).map(item=>'<div class="profile-faction-row"><span class="faction-crest">'+esc(item.faction[0]||'F')+'</span><span><b>'+esc(item.faction)+'</b><small>'+(item.isLeader?'LEADER · ':'')+esc(item.rank)+' · LEVEL '+Number(member.level||1)+'</small></span></div>').join('');
@@ -1224,17 +1236,17 @@
     arcadeKeys(key=>{const map={ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0}};if(map[key])dir=map[key]});mount.querySelectorAll('[data-arcade-pad]').forEach(b=>b.addEventListener('click',()=>{const m={ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0}};dir=m[b.dataset.arcadePad]}));ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderSpaceInvaders(mount) {
-    const ui=arcadeCanvasShell(mount,'SPACE INVADERS // ADVANCING WAVES',640,400,'Move ←/→ or A/D, fire with Space. Alien formations advance; every few seconds reinforcements drop in.','<button data-invader="left">←</button><button data-invader="fire">FIRE</button><button data-invader="right">→</button>'),ctx=ui.ctx;let player,shots,enemyShots,enemies,score,ended,last,fireAt,enemyFireAt,reinfAt,move=0,fire=false,wave,lives,direction;
+    const ui=arcadeCanvasShell(mount,'SPACE INVADERS // ADVANCING WAVES',640,400,'Move ←/→ or A/D, tap the arrows to step, fire with Space. Formations descend slowly; reinforcements arrive periodically.','<button data-invader="left">←</button><button data-invader="fire">FIRE</button><button data-invader="right">→</button>'),ctx=ui.ctx;let player,shots,enemyShots,enemies,score,ended,last,fireAt,enemyFireAt,reinfAt,move=0,fire=false,wave,lives,direction;
     function addWave(){wave++;direction=1;const rows=Math.min(3+wave,8);for(let y=0;y<rows;y++)for(let x=0;x<10;x++)enemies.push({x:48+x*58,y:38+y*27,live:true});ui.status.textContent='WAVE '+wave+' · '+enemies.filter(e=>e.live).length+' HOSTILES'}
     function fresh(){player={x:320};shots=[];enemyShots=[];enemies=[];score=0;wave=0;lives=3;ended=false;last=0;fireAt=0;enemyFireAt=0;reinfAt=performance.now()+6500;move=0;fire=false;addWave();arcadeFrame=requestAnimationFrame(tick)}
-    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now));last=now;player.x=Math.max(20,Math.min(620,player.x+move*dt*.32));if(fire&&now-fireAt>240){shots.push({x:player.x,y:350});fireAt=now}shots.forEach(s=>s.y-=dt*.5);shots=shots.filter(s=>s.y>0);const alive=enemies.filter(e=>e.live);alive.forEach(e=>{e.x+=direction*dt*(.035+wave*.006);e.y+=dt*(.016+wave*.002)});if(alive.some(e=>e.x>612||e.x<28)){direction*=-1;alive.forEach(e=>e.y+=11)}if(now>reinfAt){const col=Math.floor(Math.random()*10),x=48+col*58;enemies.push({x,y:24,live:true});reinfAt=now+Math.max(1800,6500-wave*350);ui.status.textContent='REINFORCEMENTS · WAVE '+wave}
+    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now));last=now;player.x=Math.max(20,Math.min(620,player.x+move*dt*.32));if(fire&&now-fireAt>240){shots.push({x:player.x,y:350});fireAt=now}shots.forEach(s=>s.y-=dt*.5);shots=shots.filter(s=>s.y>0);const alive=enemies.filter(e=>e.live);alive.forEach(e=>{e.x+=direction*dt*(.035+wave*.006);e.y+=dt*(.005+wave*.0007)});if(alive.some(e=>e.x>612||e.x<28)){direction*=-1;alive.forEach(e=>e.y+=11)}if(now>reinfAt){const col=Math.floor(Math.random()*10),x=48+col*58;enemies.push({x,y:24,live:true});reinfAt=now+Math.max(1800,6500-wave*350);ui.status.textContent='REINFORCEMENTS · WAVE '+wave}
       if(now-enemyFireAt>Math.max(420,1150-wave*35)&&alive.length){const shooter=alive[Math.floor(Math.random()*alive.length)];enemyShots.push({x:shooter.x,y:shooter.y+12});enemyFireAt=now}
       enemyShots.forEach(s=>s.y+=dt*(.19+wave*.012));enemyShots=enemyShots.filter(s=>s.y<400);for(const s of enemyShots){if(Math.abs(s.x-player.x)<20&&s.y>340){s.y=410;lives--;ui.status.textContent='HIT · '+lives+' SHIP'+(lives===1?'':'S')+' LEFT';if(lives<=0){ended=true;ui.status.textContent='DEFENSE FAILED';arcadeFinish(ui,'space-invaders',score,false);break}}}
       for(const s of shots){const hit=alive.find(e=>e.live&&Math.abs(e.x-s.x)<18&&Math.abs(e.y-s.y)<15);if(hit){hit.live=false;s.y=-10;score+=10}}
       if(!ended&&alive.some(e=>e.y>325)){ended=true;ui.status.textContent='ALIENS REACHED YOUR LINE';arcadeFinish(ui,'space-invaders',score,false)}
       if(!ended&&!enemies.some(e=>e.live)){addWave();reinfAt=now+4000}
       ctx.fillStyle='#060910';ctx.fillRect(0,0,640,400);ctx.fillStyle='#a6bddb';for(let i=0;i<38;i++)ctx.fillRect((i*97)%640,(i*53)%350,2,2);enemies.filter(e=>e.live).forEach(e=>{ctx.fillStyle='#72d88c';ctx.fillRect(e.x-13,e.y-9,26,16);ctx.fillRect(e.x-19,e.y-3,5,7);ctx.fillRect(e.x+14,e.y-3,5,7);ctx.fillStyle='#0a1012';ctx.fillRect(e.x-7,e.y-4,4,4);ctx.fillRect(e.x+4,e.y-4,4,4)});ctx.fillStyle='#ef4e52';ctx.beginPath();ctx.moveTo(player.x,350);ctx.lineTo(player.x-18,374);ctx.lineTo(player.x+18,374);ctx.fill();ctx.fillStyle='#79e7fb';shots.forEach(s=>ctx.fillRect(s.x-2,s.y-9,4,10));ctx.fillStyle='#ffba69';enemyShots.forEach(s=>ctx.fillRect(s.x-3,s.y-5,6,12));ctx.fillStyle='#ff777a';ctx.font='13px monospace';ctx.fillText('SHIPS '+lives,555,22);ui.score.textContent=String(score);arcadeFrame=requestAnimationFrame(tick)}
-    arcadeKeys(key=>{if(['ArrowLeft','a','A'].includes(key))move=-1;if(['ArrowRight','d','D'].includes(key))move=1;if(key===' ')fire=true});window.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))move=0;if(e.key===' ')fire=false},{signal:gameKeyController.signal});mount.querySelectorAll('[data-invader]').forEach(b=>{b.addEventListener('pointerdown',()=>{if(b.dataset.invader==='fire')fire=true;else move=b.dataset.invader==='left'?-1:1});['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>{if(b.dataset.invader==='fire')fire=false;else move=0}))});ui.reset.addEventListener('click',fresh);fresh();
+    arcadeKeys(key=>{if(['ArrowLeft','a','A'].includes(key))move=-1;if(['ArrowRight','d','D'].includes(key))move=1;if(key===' ')fire=true});window.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))move=0;if(e.key===' ')fire=false},{signal:gameKeyController.signal});mount.querySelectorAll('[data-invader]').forEach(b=>{b.addEventListener('pointerdown',()=>{if(b.dataset.invader==='fire')fire=true;else move=b.dataset.invader==='left'?-1:1});['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>{if(b.dataset.invader==='fire')fire=false;else move=0}))});mount.querySelectorAll('[data-invader]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.invader==='fire')shots.push({x:player.x,y:350});else player.x=Math.max(20,Math.min(620,player.x+(b.dataset.invader==='left'?-46:46)))}));ui.reset.addEventListener('click',fresh);fresh();
   }
     function renderDino(mount) {
     const ui=arcadeCanvasShell(mount,'DINO RUN // DESERT DASH',640,300,'Jump over the barriers using Space, ↑, tap or JUMP. Stay alive as speed increases.','<button data-dino-jump>JUMP</button>'),ctx=ui.ctx;let dino,obstacles,score,speed,ended,last,jumping=false;
@@ -1246,7 +1258,7 @@
   function renderPong(mount) {
     const ui=arcadeCanvasShell(mount,'PONG // VS ARCADE CPU',640,360,'Move with W/S, ↑/↓, mouse or touch. First to 7 points wins.','<button data-pong="up">↑</button><button data-pong="down">↓</button>'),ctx=ui.ctx;let paddle,ai,ball,score,aiScore,ended,last,move=0;
     function fresh(){paddle=160;ai=160;ball={x:320,y:180,vx:4,vy:2};score=0;aiScore=0;ended=false;last=0;move=0;ui.status.textContent='YOU 0 : 0 CPU';arcadeFrame=requestAnimationFrame(tick)}
-    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now))/16;last=now;paddle=Math.max(38,Math.min(322,paddle+move*6*dt));const intercept=ball.vx>0?ball.y+ball.vy*((622-ball.x)/Math.max(1,ball.vx))*.55:180;const target=Math.max(38,Math.min(322,intercept));ai+=Math.max(-7*dt,Math.min(7*dt,target-ai));ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;if(ball.y<8||ball.y>352)ball.vy*=-1;if(ball.vx<0&&ball.x<34&&Math.abs(ball.y-(paddle+20))<28){ball.vx=Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(paddle+20))*.08}if(ball.vx>0&&ball.x>606&&Math.abs(ball.y-(ai+20))<28){ball.vx=-Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(ai+20))*.08}if(ball.x<-8){aiScore++;ball={x:320,y:180,vx:4,vy:2}}if(ball.x>648){score++;ball={x:320,y:180,vx:-4,vy:2}}if(score>=7||aiScore>=7){ended=true;ui.status.textContent=score>=7?'YOU WIN':'CPU WINS';if(score>=7)arcadeFinish(ui,'pong',score,true)}ctx.fillStyle='#070a0e';ctx.fillRect(0,0,640,360);ctx.setLineDash([8,8]);ctx.strokeStyle='#333a47';ctx.beginPath();ctx.moveTo(320,0);ctx.lineTo(320,360);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f04b4d';ctx.fillRect(20,paddle,12,40);ctx.fillStyle='#6ad8db';ctx.fillRect(608,ai,12,40);ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f6ead0';ctx.fill();ctx.fillStyle='#ddd';ctx.font='24px monospace';ctx.fillText(score+'     '+aiScore,285,38);arcadeFrame=requestAnimationFrame(tick)}
+    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now))/16;last=now;paddle=Math.max(0,Math.min(320,paddle+move*6*dt));const intercept=ball.vx>0?ball.y+ball.vy*((622-ball.x)/Math.max(1,ball.vx))*.55:180;const target=Math.max(0,Math.min(320,intercept-20));ai+=Math.max(-7*dt,Math.min(7*dt,target-ai));ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;if(ball.y<8||ball.y>352)ball.vy*=-1;if(ball.vx<0&&ball.x<34&&Math.abs(ball.y-(paddle+20))<28){ball.vx=Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(paddle+20))*.08}if(ball.vx>0&&ball.x>606&&Math.abs(ball.y-(ai+20))<28){ball.vx=-Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(ai+20))*.08}if(ball.x<-8){aiScore++;ball={x:320,y:180,vx:4,vy:2}}if(ball.x>648){score++;ball={x:320,y:180,vx:-4,vy:2}}if(score>=7||aiScore>=7){ended=true;ui.status.textContent=score>=7?'YOU WIN':'CPU WINS';if(score>=7)arcadeFinish(ui,'pong',score,true)}ctx.fillStyle='#070a0e';ctx.fillRect(0,0,640,360);ctx.setLineDash([8,8]);ctx.strokeStyle='#333a47';ctx.beginPath();ctx.moveTo(320,0);ctx.lineTo(320,360);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f04b4d';ctx.fillRect(20,paddle,12,40);ctx.fillStyle='#6ad8db';ctx.fillRect(608,ai,12,40);ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f6ead0';ctx.fill();ctx.fillStyle='#ddd';ctx.font='24px monospace';ctx.fillText(score+'     '+aiScore,285,38);arcadeFrame=requestAnimationFrame(tick)}
     arcadeKeys(key=>{if(['ArrowUp','w','W'].includes(key))move=-1;if(['ArrowDown','s','S'].includes(key))move=1});window.addEventListener('keyup',e=>{if(['ArrowUp','ArrowDown','w','W','s','S'].includes(e.key))move=0},{signal:gameKeyController.signal});ui.canvas.addEventListener('pointermove',e=>{const r=ui.canvas.getBoundingClientRect();paddle=Math.max(0,Math.min(320,(e.clientY-r.top)*360/r.height-20))});mount.querySelectorAll('[data-pong]').forEach(b=>b.addEventListener('pointerdown',()=>move=b.dataset.pong==='up'?-1:1));mount.querySelectorAll('[data-pong]').forEach(b=>b.addEventListener('pointerup',()=>move=0));ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderFlappy(mount) {
@@ -1257,15 +1269,54 @@
     arcadeKeys(key=>{if(key===' '||key==='ArrowUp'||key==='w'||key==='W')flap()});ui.canvas.addEventListener('pointerdown',flap);mount.querySelector('[data-flap]').addEventListener('click',flap);ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderBreakout(mount) {
-    const ui=arcadeCanvasShell(mount,'BREAKOUT // FALLING BRICK SURVIVAL',640,360,'Break the wall with the ball. Each second brings another falling brick; use your paddle to catch them before they stack.','<button data-breakout="left">←</button><button data-breakout="right">→</button>'),ctx=ui.ctx;let paddle,ball,bricks,falling,score,ended,last,move=0,dropAt,elapsed;
-    function fresh(){paddle=280;ball={x:320,y:320,vx:3.5,vy:-4};bricks=[];for(let r=0;r<5;r++)for(let c=0;c<11;c++)bricks.push({x:28+c*53,y:35+r*24,alive:true,color:['#f04b4d','#f0a34b','#e9d65d','#65d589','#65cde1'][r]});falling=[];score=0;ended=false;last=0;move=0;elapsed=0;dropAt=0;ui.status.textContent='RUNNING · 3 SHIELDS';arcadeFrame=requestAnimationFrame(tick)}
-    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now))/16;last=now;elapsed+=dt*16;paddle=Math.max(0,Math.min(560,paddle+move*7*dt));ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;if(ball.x<7||ball.x>633)ball.vx*=-1;if(ball.y<7)ball.vy=Math.abs(ball.vy);if(ball.y>330&&ball.y<350&&ball.x>paddle&&ball.x<paddle+80){ball.vy=-Math.abs(ball.vy);ball.vx=((ball.x-(paddle+40))/40)*5}for(const b of bricks){if(b.alive&&ball.x>b.x&&ball.x<b.x+45&&ball.y>b.y&&ball.y<b.y+16){b.alive=false;ball.vy*=-1;score+=10;break}}if(elapsed>=dropAt){falling.push({x:18+Math.random()*580,y:-18,w:22+Math.random()*14,h:13,vy:1.1+Math.min(2.5,elapsed/25000)});dropAt=elapsed+1000;ui.status.textContent='FALLING BRICKS · '+falling.length+' INCOMING'}
-      for(const block of falling){if(block.caught)continue;block.y+=block.vy*dt;if(block.y+block.h>=330){if(block.x+block.w>paddle&&block.x<paddle+80){block.y=330;block.caught=true;score+=5}else{ended=true;ui.status.textContent='BRICK STACK OVERLOAD';arcadeFinish(ui,'breakout',score,false);break}}if(!block.caught&&ball.x>block.x&&ball.x<block.x+block.w&&ball.y>block.y&&ball.y<block.y+block.h){block.y=400;score+=15;ball.vy*=-1}}
-      falling=falling.filter(block=>block.y<355);
-      if(bricks.every(b=>!b.alive)&&!ended){ended=true;ui.status.textContent='WALL CLEARED';arcadeFinish(ui,'breakout',score,true)}ctx.fillStyle='#080b10';ctx.fillRect(0,0,640,360);bricks.filter(b=>b.alive).forEach(b=>{ctx.fillStyle=b.color;ctx.fillRect(b.x,b.y,45,16);ctx.strokeStyle='#111';ctx.strokeRect(b.x,b.y,45,16)});falling.forEach(b=>{ctx.fillStyle=b.caught?'#7ad8df':'#c876ff';ctx.fillRect(b.x,b.y,b.w,b.h);ctx.strokeStyle='#f3e8ff';ctx.strokeRect(b.x,b.y,b.w,b.h)});ctx.fillStyle='#e8ecf4';ctx.fillRect(paddle,338,80,9);ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f8d88b';ctx.fill();ui.score.textContent=String(score);arcadeFrame=requestAnimationFrame(tick)}
-    arcadeKeys(key=>{if(['ArrowLeft','a','A'].includes(key))move=-1;if(['ArrowRight','d','D'].includes(key))move=1});window.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))move=0},{signal:gameKeyController.signal});ui.canvas.addEventListener('pointermove',e=>{const r=ui.canvas.getBoundingClientRect();paddle=Math.max(0,Math.min(560,(e.clientX-r.left)*640/r.width-40))});mount.querySelectorAll('[data-breakout]').forEach(b=>{b.addEventListener('pointerdown',()=>move=b.dataset.breakout==='left'?-1:1);['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>move=0))});ui.reset.addEventListener('click',fresh);fresh();
+    const ui=arcadeCanvasShell(mount,'BREAKOUT // DESCENDING BRICK WALL',640,360,'Break the top wall with the ball. Each second the brick field moves down and a full new row forms at the top.','<button data-breakout="left">←</button><button data-breakout="right">→</button>'),ctx=ui.ctx;
+    let paddle,ball,bricks,score,ended,last,move=0,dropAt,elapsed,rowCount;
+    const colors=['#f04b4d','#f0a34b','#e9d65d','#65d589','#65cde1'];
+    function addBrickRow(y,color=colors[rowCount%colors.length]){
+      for(let c=0;c<11;c++)bricks.push({x:28+c*53,y,alive:true,color});
+      rowCount++;
+    }
+    function fresh(){
+      paddle=280;ball={x:320,y:320,vx:3.5,vy:-4};bricks=[];rowCount=0;
+      for(let r=0;r<5;r++)for(let c=0;c<11;c++)bricks.push({x:28+c*53,y:35+r*24,alive:true,color:colors[r]});
+      rowCount=5;score=0;ended=false;last=0;move=0;elapsed=0;dropAt=1000;
+      ui.status.textContent='RUNNING · THE WALL DESCENDS';arcadeFrame=requestAnimationFrame(tick);
+    }
+    function tick(now){
+      if(ended)return;
+      const dt=Math.min(32,now-(last||now))/16;last=now;elapsed+=dt*16;
+      paddle=Math.max(0,Math.min(560,paddle+move*7*dt));ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
+      if(ball.x<7||ball.x>633)ball.vx*=-1;
+      if(ball.y<7)ball.vy=Math.abs(ball.vy);
+      if(ball.y>330&&ball.y<350&&ball.x>paddle&&ball.x<paddle+80){ball.vy=-Math.abs(ball.vy);ball.vx=((ball.x-(paddle+40))/40)*5}
+      for(const b of bricks){
+        if(b.alive&&ball.x+7>b.x&&ball.x-7<b.x+45&&ball.y+7>b.y&&ball.y-7<b.y+16){
+          b.alive=false;ball.vy*=-1;score+=10;break;
+        }
+      }
+      if(elapsed>=dropAt){
+        bricks.filter(b=>b.alive).forEach(b=>b.y+=15);
+        addBrickRow(12);
+        dropAt=elapsed+1000;
+        ui.status.textContent='DESCENDING WALL · ROW '+rowCount;
+        if(bricks.some(b=>b.alive&&b.y+16>=326)){
+          ended=true;ui.status.textContent='THE BRICKS REACHED YOUR PADDLE';arcadeFinish(ui,'breakout',score,false);
+        }
+      }
+      if(bricks.every(b=>!b.alive)&&!ended){ended=true;ui.status.textContent='WALL CLEARED';arcadeFinish(ui,'breakout',score,true)}
+      ctx.fillStyle='#080b10';ctx.fillRect(0,0,640,360);
+      bricks.filter(b=>b.alive).forEach(b=>{ctx.fillStyle=b.color;ctx.fillRect(b.x,b.y,45,16);ctx.strokeStyle='#111';ctx.strokeRect(b.x,b.y,45,16)});
+      ctx.fillStyle='#e8ecf4';ctx.fillRect(paddle,338,80,9);
+      ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f8d88b';ctx.fill();
+      ui.score.textContent=String(score);arcadeFrame=requestAnimationFrame(tick);
+    }
+    arcadeKeys(key=>{if(['ArrowLeft','a','A'].includes(key))move=-1;if(['ArrowRight','d','D'].includes(key))move=1});
+    window.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))move=0},{signal:gameKeyController.signal});
+    ui.canvas.addEventListener('pointermove',e=>{const r=ui.canvas.getBoundingClientRect();paddle=Math.max(0,Math.min(560,(e.clientX-r.left)*640/r.width-40))});
+    mount.querySelectorAll('[data-breakout]').forEach(b=>{b.addEventListener('pointerdown',()=>move=b.dataset.breakout==='left'?-1:1);['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>move=0))});
+    ui.reset.addEventListener('click',fresh);fresh();
   }
-    function renderChess(mount) {
+  function renderChess(mount) {
     const ui={};mount.innerHTML='<div class="game-status"><span>YOU VS ARCADE CPU</span><span id="chess-status">WHITE TO MOVE</span><span>STANDARD RULES</span></div><div class="game-stage chess-stage"><div id="chess-board" class="chess-board" role="grid" aria-label="Chess board"></div></div><div class="game-control-row"><span class="game-help">Select a piece and a highlighted legal square. Castling and en passant are enabled; pawns promote to queens.</span><button type="button" class="game-button" id="chess-reset">NEW GAME</button></div>';
     const host=mount.querySelector('#chess-board'),status=mount.querySelector('#chess-status');let board,turn,selected,legal,ep,castle,done=false;
     const icon={K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
