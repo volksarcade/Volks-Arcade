@@ -96,6 +96,12 @@
       async markNotificationsRead(userId) {
         return unwrap(await client.from('notifications').update({read_at:new Date().toISOString()}).eq('user_id',userId).is('read_at',null));
       },
+      async deleteNotification(notificationId, userId) {
+        return unwrap(await client.from('notifications').delete().eq('id',notificationId).eq('user_id',userId));
+      },
+      async clearNotifications(userId) {
+        return unwrap(await client.from('notifications').delete().eq('user_id',userId));
+      },
       async staffAssignment(userId) {
         const result = await client.from('staff_assignments').select('role,scopes').eq('user_id', userId).maybeSingle();
         return unwrap(result);
