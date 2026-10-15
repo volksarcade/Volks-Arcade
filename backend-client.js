@@ -57,6 +57,9 @@
       async memberDirectory() {
         return unwrap(await client.rpc('public_member_directory'));
       },
+      async publicMemberProfile(userId) {
+        return unwrap(await client.rpc('public_member_profile', { p_user_id:userId }));
+      },
       async memberFactionMemberships(userIds) {
         if (!userIds.length) return [];
         return unwrap(await client.from('faction_memberships').select('user_id,faction_id,rank_key,character_name').in('user_id', userIds));
