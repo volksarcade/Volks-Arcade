@@ -243,3 +243,29 @@ body:not(.account-authorized) #page-platform { display: none !important; }
 .profile-faction-admin-fields input{grid-column:1/-1}
 .profile-faction-admin-fields input,.profile-faction-admin-fields select{min-width:0;padding:10px;border:1px solid var(--line,#2a2d35);border-radius:7px;background:#171a20;color:var(--text,#f4f4f6)}
 @media(max-width:600px){.content-live-now{align-items:flex-start}.monthly-board-list li{grid-template-columns:24px 24px minmax(0,1fr) auto}.monthly-board-list li>small{display:none}.profile-faction-admin-fields{grid-template-columns:1fr}.profile-faction-admin-fields input{grid-column:auto}}
+
+/* Accessible dark notification cards and readable account alerts */
+#drawer-content .notification-item{
+  appearance:none;-webkit-appearance:none;display:flex;align-items:flex-start;gap:11px;
+  width:100%;margin:0 0 8px;padding:13px 12px;background:#171a21;color:#f4f5f7;
+  border:1px solid #303440;border-radius:8px;text-align:left;font:inherit;cursor:pointer;
+}
+#drawer-content .notification-item:hover,#drawer-content .notification-item:focus-visible{
+  background:#20232c;border-color:#525866;outline:none;
+}
+#drawer-content .notification-item:focus-visible{box-shadow:0 0 0 2px rgba(241,92,96,.55)}
+#drawer-content .notification-item>span,#drawer-content .notification-item>div{
+  display:grid;flex:1;min-width:0;gap:5px;
+}
+#drawer-content .notification-item b{color:#f5f6f8;font-size:13px;font-weight:650;line-height:1.4}
+#drawer-content .notification-item small{color:#c1c6d0;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+#drawer-content .notification-item time{color:#9da5b2;font:10px var(--mono,monospace);line-height:1.4}
+#drawer-content .drawer-section-label{font-size:10px;line-height:1.5;color:#aab0bc}
+#drawer-content .empty-state{color:#c1c6d0;font-size:13px;line-height:1.6}
+.toast{font-size:13px;line-height:1.5;max-width:calc(100vw - 32px);width:max-content;text-align:center}
+@media(max-width:600px){
+  .utility-drawer{padding:16px}
+  #drawer-content .notification-item{padding:13px 11px;gap:10px}
+  #drawer-content .notification-item b{font-size:14px}
+  #drawer-content .notification-item small{font-size:13px}
+}
