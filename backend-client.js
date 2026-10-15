@@ -230,6 +230,11 @@
       async recordArcadeEvent(gameKey, action) {
         return unwrap(await client.rpc('record_arcade_event', { p_game_key: gameKey, p_action: action }));
       },
+      async recordArcadeCompletion(gameKey, progressionCount = 1, won = false, runId) {
+        return unwrap(await client.rpc('record_arcade_completion', {
+          p_game_key:gameKey,p_progression_count:progressionCount,p_won:Boolean(won),p_run_id:runId
+        }));
+      },
       async submitMonthlyArcadeScore(gameKey, score) {
         return unwrap(await client.rpc('submit_monthly_arcade_score', { p_game_key:gameKey, p_score:Math.floor(Number(score)||0) }));
       },
