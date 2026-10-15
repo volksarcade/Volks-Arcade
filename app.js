@@ -1106,7 +1106,7 @@
   function factionRankKey(factionId,rank){if(factionId==='house-volkah'&&String(rank).toLowerCase().includes('council'))return 'council';return slug(String(rank).split(' — ')[0]);}
   function manageableFactionIds(){
     const role=currentStaffRole(),scopes=moderatorAssignmentsFor(data.profile.display).map(item=>item.scope);
-    if(['Owner','Administrator'].includes(role)||scopes.includes('manage-factions'))return factionCatalog().map(item=>item.id);
+    if(['Owner','Administrator'].includes(role)||scopes.includes('manage-factions'))return ['house-volkah','ueeif','vampiric-hierarchy'];
     return scopes.filter(scope=>scope.startsWith('faction:')).map(scope=>scope.slice(8));
   }
   function openGame(kind) {
