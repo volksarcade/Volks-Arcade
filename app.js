@@ -465,7 +465,30 @@
   }
   async function trackArcadePlay(game){if(!databaseMode){const cfg=ensureChallengeState();if(game===cfg.dailyGame&&!data.challengeState.dailyClaimed){data.challengeState.dailyPlays=1;data.challengeState.dailyClaimed=true;data.xp+=40;data.spendableXp+=40;persist();update();showToast('+40 XP · Daily arcade event complete');renderChallenges();}return;}if(!data.currentUserId)return;try{const backend=await window.VABackendReady,result=await backend.recordArcadeEvent(game,'play');await Promise.all([refreshLiveChallenges(),refreshBackendWallet(backend),refreshStreakAndNotifications(false)]);if(Number(result?.daily_reward)>0)showToast(`+${result.daily_reward} XP · Daily challenge complete`);if(Number(result?.streak_bonus)>0)showToast(`+${result.streak_bonus} XP · ${result.current_streak}-day streak`);if(Number(result?.weekly_reward)>0)showToast(`+${result.weekly_reward} XP · Weekly rotation complete`);}catch(error){showToast(error.message||'Challenge progress could not be saved.');}}
 
-  async function refreshBackendWallet(backend){if(!databaseMode||!data.currentUserId)return;const [wallet,owned]=await Promise.all([backend.wallet(data.currentUserId),backend.ownedStoreItems(data.currentUserId)]);data.xp=Number(wallet?.lifetime_xp||0);data.spendableXp=Number(wallet?.spendable_xp||0);data.wallet=Number(wallet?.va_coins||0);data.level=levelFor(data.xp).level;data.owned=owned.map(row=>row.item_id);update();}
+  let backendWalletRefreshPromise=null;
+  async function refreshBackendWallet(backend,refreshOwned=true){
+    if(!databaseMode||!data.currentUserId)return;
+    if(backendWalletRefreshPromise)return backendWalletRefreshPromise;
+    const userId=data.currentUserId;
+    backendWalletRefreshPromise=(async()=>{
+      const wallet=await backend.wallet(userId);
+      const owned=refreshOwned?await backend.ownedStoreItems(userId):null;
+      if(data.currentUserId!==userId)return;
+      const nextXp=Number(wallet?.lifetime_xp||0),nextSpendable=Number(wallet?.spendable_xp||0),nextCoins=Number(wallet?.va_coins||0);
+      let changed=nextXp!==data.xp||nextSpendable!==data.spendableXp||nextCoins!==data.wallet;
+      data.xp=nextXp;data.spendableXp=nextSpendable;data.wallet=nextCoins;data.level=levelFor(data.xp).level;
+      if(owned){const nextOwned=owned.map(row=>row.item_id);changed=changed||JSON.stringify(nextOwned)!==JSON.stringify(data.owned);data.owned=nextOwned;}
+      if(changed)update();
+    })();
+    try{await backendWalletRefreshPromise;}finally{backendWalletRefreshPromise=null;}
+  }
+  function refreshVisibleAccountWallet(){
+    if(!databaseMode||!data.currentUserId||document.hidden)return;
+    void window.VABackendReady.then(backend=>refreshBackendWallet(backend,false)).catch(error=>console.warn('Account progress refresh failed:',error.message));
+  }
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshVisibleAccountWallet();});
+  window.addEventListener('focus',refreshVisibleAccountWallet);
+  setInterval(refreshVisibleAccountWallet,30_000);
   function updateGameBestLabels() {
     document.getElementById('snake-best-label').textContent = num(data.snakeBest);
     const tetrisLabel = document.getElementById('tetris-best-label'); if (tetrisLabel) tetrisLabel.textContent = num(data.tetrisBest);
