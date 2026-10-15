@@ -216,6 +216,18 @@
       async recordArcadeEvent(gameKey, action) {
         return unwrap(await client.rpc('record_arcade_event', { p_game_key: gameKey, p_action: action }));
       },
+      async submitMonthlyArcadeScore(gameKey, score) {
+        return unwrap(await client.rpc('submit_monthly_arcade_score', { p_game_key:gameKey, p_score:Math.floor(Number(score)||0) }));
+      },
+      async monthlyArcadeLeaderboard() {
+        return unwrap(await client.rpc('monthly_arcade_leaderboard'));
+      },
+      async assignScopedModerator(userId, scopes) {
+        return unwrap(await client.rpc('assign_scoped_moderator', { p_user_id:userId, p_scopes:scopes }));
+      },
+      async assignFactionMembership(userId, factionId, rankKey, characterName) {
+        return unwrap(await client.rpc('assign_faction_membership', { p_user_id:userId, p_faction_id:factionId, p_rank_key:rankKey, p_character_name:characterName }));
+      },
       async challengeCycles() {
         await client.rpc('ensure_current_challenges');
         return unwrap(await client.from('challenge_cycles').select('*').gte('ends_at', new Date().toISOString()).order('starts_at'));
