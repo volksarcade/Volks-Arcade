@@ -131,8 +131,7 @@ begin
   return jsonb_build_object('reward',daily_reward+weekly_reward,'daily_reward',daily_reward,'weekly_reward',weekly_reward,
     'streak_bonus',streak_bonus,'current_streak',coalesce(streak_now,0));
 end;
-$function$
-
+$function$;
 
 create or replace function public.public_member_directory()
 returns table (
