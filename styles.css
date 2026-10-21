@@ -277,3 +277,27 @@ body:not(.account-authorized) #page-platform { display: none !important; }
 .platform-chat-main{padding:0!important;min-height:0}.platform-chat-workspace{display:grid;grid-template-columns:minmax(0,1fr) 230px;min-height:520px;height:100%}.platform-chat-thread{display:flex;min-width:0;flex-direction:column;padding:16px}.platform-chat-thread .platform-chat-log{min-height:260px;max-height:none}.platform-roster{display:flex;min-width:0;flex-direction:column;border-left:1px solid var(--line);background:#101218}.platform-roster-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 11px;border-bottom:1px solid var(--line)}.platform-roster-heading>div{display:grid;gap:5px}.platform-roster-heading>div>b{font-size:13px}.platform-roster-heading>div>b span{color:#969ba6;font:10px var(--mono)}.platform-roster-heading>button{padding:5px 6px;border:1px solid #383b45;border-radius:4px;background:#191b22;color:#d3d5dc;font:8px var(--mono);cursor:pointer}.platform-roster-filters{display:flex;gap:5px;padding:9px 9px 5px}.platform-roster-filters button{flex:1;padding:6px;border:1px solid #30333d;border-radius:4px;background:#171920;color:#aeb2bc;font:8px var(--mono);cursor:pointer}.platform-roster-filters button.active{border-color:#7b393e;background:#2a1a1e;color:#fff}.platform-chat-members{display:flex;min-height:0;flex:1;flex-direction:column;flex-wrap:nowrap;gap:4px;overflow-y:auto;padding:5px 8px 12px;border-bottom:0}.platform-chat-members .chat-mention-chip{display:grid;grid-template-columns:9px minmax(0,1fr);align-items:center;column-gap:6px;width:100%;padding:8px;border:1px solid #2b2e37;border-radius:5px;background:#15171e;color:#e4e5ea;text-align:left;cursor:pointer}.platform-chat-members .chat-mention-chip:hover{border-color:#744047;background:#21181d}.platform-chat-members .chat-mention-chip>b{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.platform-chat-members .chat-mention-chip small{grid-column:2;margin:0;color:#a9a0a4;font:9px var(--mono)}.roster-presence{width:7px;height:7px;border-radius:50%;background:#666b75}.roster-presence.is-active{background:#55d6a3;box-shadow:0 0 8px #55d6a355}.roster-empty{padding:10px 5px;color:#a3a6b0;font-size:11px;line-height:1.5}.platform-roster.collapsed{width:42px}.platform-chat-workspace:has(.platform-roster.collapsed){grid-template-columns:minmax(0,1fr) 42px}.platform-roster.collapsed .platform-roster-heading{justify-content:center;padding:10px 3px}.platform-roster.collapsed .platform-roster-heading>div,.platform-roster.collapsed .platform-roster-filters,.platform-roster.collapsed .platform-chat-members{display:none}.platform-roster.collapsed .platform-roster-heading>button{writing-mode:vertical-rl;padding:7px 5px}
 @media(max-width:900px){.platform-chat-workspace{grid-template-columns:minmax(0,1fr) 205px}.platform-chat-thread{padding:12px}.platform-chat-thread .platform-chat-log{min-height:220px}.notification-row .notification-open b{font-size:14px}.notification-row .notification-open small{font-size:13px}}
 @media(max-width:650px){.platform-chat-layout{grid-template-columns:1fr;min-height:0}.platform-room-sidebar{border-right:0;border-bottom:1px solid var(--line);padding:10px}.platform-room-sidebar #platform-room-list{display:flex;gap:5px;overflow-x:auto}.platform-room-button{min-width:max-content;width:auto}.leader-room-note{display:none}.platform-chat-workspace{grid-template-columns:minmax(0,1fr) 42px;min-height:70vh}.platform-roster{border-left:1px solid var(--line)}.platform-chat-thread{padding:10px}.platform-chat-thread .platform-chat-log{min-height:260px}.notification-row{gap:8px}.notification-row .notification-open b{font-size:14px}.notification-row .notification-open small{font-size:13px}}
+
+
+/* Mobile account access: keep SIGN OUT visible for signed-in players. */
+@media(max-width:620px){
+  body:not(.new-player-preview) #signout-button:not([hidden]){
+    display:inline-flex!important;
+    align-items:center;
+    justify-content:center;
+    flex:0 0 auto;
+    min-height:32px;
+    padding:0 6px;
+    font-size:6px;
+    letter-spacing:.04em;
+    white-space:nowrap;
+  }
+}
+@media(max-width:420px){
+  .topbar{gap:4px;padding-left:8px;padding-right:8px}
+  .breadcrumb{flex:0 1 auto;min-width:0}
+  .crumb-muted,.crumb-slash{display:none}
+  .top-actions{max-width:calc(100vw - 120px);overflow-x:auto;scrollbar-width:none}
+  .top-actions::-webkit-scrollbar{display:none}
+  .top-wallet{gap:3px;padding-right:5px;padding-left:5px}
+}
