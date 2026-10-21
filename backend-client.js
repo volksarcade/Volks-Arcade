@@ -77,6 +77,15 @@
         const result = await client.from('xp_wallets').select('lifetime_xp,spendable_xp,va_coins').eq('user_id', userId).maybeSingle();
         return unwrap(result);
       },
+      async coinCheckoutStatus() {
+        return unwrap(await client.functions.invoke('va-coin-checkout', { body: { action: 'status' } }));
+      },
+      async createCoinOrder(packageKey) {
+        return unwrap(await client.functions.invoke('va-coin-checkout', { body: { action: 'create', packageKey } }));
+      },
+      async captureCoinOrder(orderId) {
+        return unwrap(await client.functions.invoke('va-coin-checkout', { body: { action: 'capture', orderId } }));
+      },
       async coinLedger(userId) {
         return unwrap(await client.from('store_coin_ledger').select('amount,source,created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(12));
       },
