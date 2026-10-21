@@ -434,8 +434,9 @@
         buttons().forEach(button=>{button.disabled=true;button.textContent='SETUP REQUIRED';});
         return;
       }
-      if(status)status.textContent='Secure PayPal checkout is ready. Pack prices and coin amounts are fixed on the server; coins are added only after PayPal confirms capture.';
-      if(badge)badge.textContent='PAYPAL VERIFIED';
+      const sandbox=String(setup.mode||'').toLowerCase()!=='live';
+      if(status)status.textContent=sandbox?'PayPal Sandbox checkout is ready for TEST transactions only. No real-money purchases are available until PayPal Live credentials are configured. Test captures add test coins only.':'Live PayPal checkout is ready. Pack prices and coin amounts are fixed on the server; coins are added only after PayPal confirms capture.';
+      if(badge)badge.textContent=sandbox?'SANDBOX · TEST ONLY':'PAYPAL LIVE';
       const sdk=await loadPaypalCoinSdk(setup.clientId,setup.mode);
       if(!sdk?.Buttons)throw new Error('PayPal checkout buttons are unavailable.');
       for(const key of keys){
