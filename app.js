@@ -515,8 +515,8 @@
     const game=source==='noughts-draw'?'noughts':source,progression=Math.max(1,Math.min(50,Math.floor(Number(resultOptions.progression)||1))),won=Boolean(resultOptions.won);
     if (databaseMode) {
       if(!data.currentUserId)return false;
-      void (async()=>{try{const backend=await window.VABackendReady,result=await backend.recordArcadeCompletion(game,progression,won,arcadeRunId());await refreshBackendWallet(backend);await refreshLiveChallenges();if(Number(result?.game_reward)>0){const label=arcadeProgressionGames.includes(game)?`Level / wave reward · ${progression} reached`:won&&arcadeWinningGames.includes(game)?'Victory reward':'Game completion';showToast(`+${result.game_reward} XP · ${label}`);}else if(result?.already_counted)showToast('This game result was already counted.');else showToast('XP could not be recorded for that game.');}catch(error){showToast(error.message||'Game XP could not be saved.');}})();
-      return true;
+      showToast('Verified game-completion XP is coming soon. Games remain playable while server-side result checks are added.');
+      return false;
     }
     const key = `${dayKey}:${source}`;
     if (data.daily[key]) { showToast('Today’s XP for this activity is already claimed.'); return false; }
@@ -529,10 +529,10 @@
   function challengeConfig(){const games=Object.keys(challengeGameNames),dailyIndex=Math.floor(Date.now()/86400000)%games.length;return {dailyGame:games[dailyIndex],week:challengeWeekKey()};}
   function ensureChallengeState(){const cfg=challengeConfig();data.challengeState=data.challengeState||{};if(data.challengeState.day!==dayKey)data.challengeState={...data.challengeState,day:dayKey,dailyPlays:0,dailyClaimed:false,dailyRewarded:false};if(data.challengeState.week!==cfg.week)data.challengeState={...data.challengeState,week:cfg.week,weeklyWins:0,weeklyClaimed:false};return cfg;}
   let liveChallengeCycles=[],liveChallengeProgress=[];
-  async function refreshLiveChallenges(){if(!databaseMode||!data.currentUserId)return;try{const backend=await window.VABackendReady;[liveChallengeCycles,liveChallengeProgress]=await Promise.all([backend.challengeCycles(),backend.challengeProgress(data.currentUserId)]);renderChallenges();}catch(error){console.warn('Challenge progress could not load:',error.message);}}
+  async function refreshLiveChallenges(){liveChallengeCycles=[];liveChallengeProgress=[];renderChallenges();}
   function renderChallenges(){
     const host=document.getElementById('community-challenges');if(!host)return;
-    if(databaseMode&&!data.currentUserId){host.innerHTML='<div class="empty-state">Sign in to see and earn your challenge XP.</div>';return;}
+    if(databaseMode){host.innerHTML='<div class="empty-state">Verified arcade XP, daily and weekly rewards, streak bonuses and scoreboards are coming soon while secure game-result checks are built. Games remain playable, and existing XP and VA Coins stay in your account.</div>';return;}
     const progressByCycle=new Map(liveChallengeProgress.map(row=>[row.cycle_key,row]));
     if(databaseMode&&liveChallengeCycles.length){
       const daily=liveChallengeCycles.find(cycle=>cycle.cadence==='daily'),weekly=liveChallengeCycles.find(cycle=>cycle.cadence==='weekly');
@@ -551,18 +551,16 @@
     const cfg=ensureChallengeState(),daily=challengeGameNames[cfg.dailyGame],streak=data.playerStreak||{};
     host.innerHTML=`<article><span class="event-date">DAILY · ${esc(dayKey)}</span><span class="eyebrow">+40 XP</span><h3>Play ${esc(daily)}</h3><p>Start today’s featured game for account XP and a growing daily streak.</p><div class="challenge-progress"><span>0 / 1 COMPLETE</span><button class="button button-primary" data-game="${cfg.dailyGame}">PLAY GAME ↗</button></div></article><article class="streak-card"><span class="event-date">DAILY STREAK</span><h3>${Number(streak.current_streak)||0} day streak</h3><p>Daily streak rewards are available after account sign-in.</p></article><article><span class="event-date">WEEKLY ROTATION</span><h3>Play a rotating featured game</h3><p>Weekly game and progress load from your signed-in account.</p></article>`;
   }
-  async function refreshStreakAndNotifications(notifyOnNew=false){
+  async function refreshStreakAndNotifications(){
     if(!databaseMode||!data.currentUserId)return;
-    try{const backend=await window.VABackendReady,state=await backend.checkDailyStreakReminder();data.playerStreak={current_streak:Number(state?.current_streak)||0,best_streak:Number(state?.best_streak)||0,last_active_day:state?.last_active_day||null,at_risk:Boolean(state?.at_risk)};data.databaseNotifications=await backend.notifications(data.currentUserId);updateNotificationBadge();renderChallenges();if(notifyOnNew&&state?.reminder_created)showToast('Your daily streak is nearly expired. Play the featured game before midnight UTC.');}
-    catch(error){console.warn('Streak reminder could not load:',error.message);}
+    try{const backend=await window.VABackendReady;data.databaseNotifications=await backend.notifications(data.currentUserId);data.playerStreak={current_streak:0,best_streak:0,last_active_day:null,at_risk:false};updateNotificationBadge();renderChallenges();}
+    catch(error){console.warn('Notifications could not load:',error.message);}
   }
-  function scheduleStreakReminder(){
-    if(streakReminderTimer)clearTimeout(streakReminderTimer);
-    if(!databaseMode||!data.currentUserId)return;
-    const now=new Date(),next=new Date();next.setUTCHours(21,0,0,0);if(next<=now)next.setUTCDate(next.getUTCDate()+1);
-    streakReminderTimer=setTimeout(async()=>{await refreshStreakAndNotifications(true);scheduleStreakReminder();},Math.max(1000,next.getTime()-now.getTime()));
+  function scheduleStreakReminder(){if(streakReminderTimer){clearTimeout(streakReminderTimer);streakReminderTimer=null;}}
+  async function trackArcadePlay(game){
+    if(!databaseMode){const cfg=ensureChallengeState();if(game===cfg.dailyGame&&!data.challengeState.dailyClaimed){data.challengeState.dailyPlays=1;data.challengeState.dailyClaimed=true;data.xp+=40;data.spendableXp+=40;persist();update();showToast('+40 XP · Daily arcade event complete');renderChallenges();}return;}
+    if(data.currentUserId)showToast('Verified daily and weekly arcade rewards are coming soon. Games remain playable.');
   }
-  async function trackArcadePlay(game){if(!databaseMode){const cfg=ensureChallengeState();if(game===cfg.dailyGame&&!data.challengeState.dailyClaimed){data.challengeState.dailyPlays=1;data.challengeState.dailyClaimed=true;data.xp+=40;data.spendableXp+=40;persist();update();showToast('+40 XP · Daily arcade event complete');renderChallenges();}return;}if(!data.currentUserId)return;try{const backend=await window.VABackendReady,result=await backend.recordArcadeEvent(game,'play');await Promise.all([refreshLiveChallenges(),refreshBackendWallet(backend),refreshStreakAndNotifications(false)]);if(Number(result?.daily_reward)>0)showToast(`+${result.daily_reward} XP · Daily challenge complete`);if(Number(result?.streak_bonus)>0)showToast(`+${result.streak_bonus} XP · ${result.current_streak}-day streak`);if(Number(result?.weekly_reward)>0)showToast(`+${result.weekly_reward} XP · Weekly rotation complete`);}catch(error){showToast(error.message||'Challenge progress could not be saved.');}}
 
   let backendWalletRefreshPromise=null;
   async function refreshBackendWallet(backend,refreshOwned=true){
@@ -1229,23 +1227,13 @@
     const selected=document.querySelector('#game-mount [data-monthly-board]');if(selected){const game=selected.dataset.monthlyBoard;selected.querySelector('summary span').textContent=month.toUpperCase();}
     document.querySelectorAll('[data-board-rows]').forEach(host=>{
       const game=host.dataset.boardRows,rows=monthlyArcadeRows.filter(row=>row.game_key===game);
-      if(!databaseMode||!data.currentUserId){host.innerHTML='<div class="empty-state">Sign in to view this month’s leaderboard.</div>';return;}
+      if(databaseMode){host.innerHTML='<div class="empty-state">Verified monthly scores and rankings are coming soon. Your game bests remain personal.</div>';return;}
+      if(!data.currentUserId){host.innerHTML='<div class="empty-state">Sign in to view this month’s leaderboard.</div>';return;}
       host.innerHTML=rows.length?'<ol class="monthly-board-list">'+rows.map(row=>'<li><span class="monthly-board-place">#'+Number(row.place)+'</span>'+(row.avatar_url?'<img src="'+esc(row.avatar_url)+'" alt="">':'<span class="monthly-board-avatar">'+esc((row.username||'P')[0].toUpperCase())+'</span>')+'<button type="button" data-view-profile="'+esc(row.user_id)+'">'+esc(row.username)+'</button><small>LVL '+Number(row.player_level||1)+'</small><b>'+num(row.score)+'</b></li>').join('')+'</ol>':'<div class="empty-state">No scores recorded this month yet. Play a run to claim the first spot.</div>';
     });
   }
-  async function refreshMonthlyArcadeBoards(){
-    renderMonthlyArcadeBoards();
-    if(!databaseMode||!data.currentUserId)return;
-    try{const backend=await window.VABackendReady;monthlyArcadeRows=await backend.monthlyArcadeLeaderboard()||[];}
-    catch(error){monthlyArcadeRows=[];console.warn('Monthly arcade leaderboard could not load:',error.message);}
-    renderMonthlyArcadeBoards();
-  }
-  async function submitMonthlyArcadeScore(game,score){
-    if(!databaseMode||!data.currentUserId)return;
-    const value=Math.max(0,Math.min(100000000,Math.floor(Number(score)||0)));
-    try{const backend=await window.VABackendReady;await backend.submitMonthlyArcadeScore(game,value);await refreshMonthlyArcadeBoards();}
-    catch(error){console.warn('Monthly score could not be saved:',error.message);}
-  }
+  async function refreshMonthlyArcadeBoards(){monthlyArcadeRows=[];renderMonthlyArcadeBoards();}
+  async function submitMonthlyArcadeScore(){return;}
   function factionRankKey(factionId,rank){if(factionId==='house-volkah'&&String(rank).toLowerCase().includes('council'))return 'council';return slug(String(rank).split(' — ')[0]);}
   function manageableFactionIds(){
     const role=currentStaffRole(),scopes=moderatorAssignmentsFor(data.profile.display).map(item=>item.scope);
