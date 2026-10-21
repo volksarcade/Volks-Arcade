@@ -398,7 +398,7 @@
     }catch(error){host.innerHTML='<p class="demo-note">Wallet activity could not be loaded right now.</p>';console.warn('Coin activity unavailable:',error.message);}
   }
   let paypalCoinSdkPromise=null,paypalCoinRenderedClient='';
-  function loadPaypalCoinSdk(clientId){
+  function loadPaypalCoinSdk(clientId,mode){
     if(window.paypal&&paypalCoinRenderedClient===clientId)return Promise.resolve(window.paypal);
     const subscriptionSdk=document.getElementById('paypal-subscription-sdk');
     if(window.paypal&&!document.getElementById('paypal-coin-sdk')){
@@ -408,7 +408,7 @@
     if(paypalCoinSdkPromise)return paypalCoinSdkPromise;
     paypalCoinSdkPromise=new Promise((resolve,reject)=>{
       const script=document.createElement('script');script.id='paypal-coin-sdk';
-      script.src='https://www.paypal.com/sdk/js?client-id='+encodeURIComponent(clientId)+'&currency=GBP&intent=capture&components=buttons';
+      script.src=(mode==='sandbox'?'https://www.sandbox.paypal.com/sdk/js':'https://www.paypal.com/sdk/js')+'?client-id='+encodeURIComponent(clientId)+'&currency=GBP&intent=capture&components=buttons';
       script.async=true;
       script.addEventListener('load',()=>resolve(window.paypal),{once:true});
       script.addEventListener('error',()=>{paypalCoinSdkPromise=null;reject(new Error('PayPal checkout could not load.'));},{once:true});
@@ -436,7 +436,7 @@
       }
       if(status)status.textContent='Secure PayPal checkout is ready. Pack prices and coin amounts are fixed on the server; coins are added only after PayPal confirms capture.';
       if(badge)badge.textContent='PAYPAL VERIFIED';
-      const sdk=await loadPaypalCoinSdk(setup.clientId);
+      const sdk=await loadPaypalCoinSdk(setup.clientId,setup.mode);
       if(!sdk?.Buttons)throw new Error('PayPal checkout buttons are unavailable.');
       for(const key of keys){
         let mount=document.getElementById('paypal-coin-'+key);
