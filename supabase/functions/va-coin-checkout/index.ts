@@ -75,7 +75,7 @@ async function paypalRequest(cfg: ReturnType<typeof settings>, token: string, pa
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    console.error("PayPal API error", response.status, body.name || body.error || "unknown");
+    console.error("PayPal API error", response.status, JSON.stringify({ name: body.name || body.error || "unknown", debug_id: body.debug_id || null, details: Array.isArray(body.details) ? body.details.map((entry: any) => ({ field: entry?.field || "", issue: entry?.issue || "" })) : [] }));
     throw new Error("PayPal could not complete this checkout. Please try again or contact support.");
   }
   return body;
@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
           reference_id: packageKey,
           custom_id: user.id,
           description: "VOLKS ARCADE · " + pack.name,
-          amount: { currency_code: "GBP", value: pack.amount },
+          amount: { currency_code: "GBP", value: pack.amount, breakdown: { item_total: { currency_code: "GBP", value: pack.amount } } },
           items: [{
             name: pack.name,
             quantity: "1",
