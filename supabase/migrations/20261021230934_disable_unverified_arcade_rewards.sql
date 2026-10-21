@@ -1,0 +1,2 @@
+revoke all on function public.record_arcade_completion(text, integer, boolean, uuid) from public, anon, authenticated;
+comment on function public.record_arcade_completion(text, integer, boolean, uuid) is 'Execution is disabled for browser users because client-reported completion and progression cannot securely verify a game result. Re-enable only after authoritative server-side result validation is deployed.';
