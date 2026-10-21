@@ -289,7 +289,7 @@
     if (name === 'home' || name === 'arcade') { refreshWeeklyLeaderboard(); if(name==='arcade')refreshMonthlyArcadeBoards(); if(databaseMode&&data.currentUserId)refreshMemberDirectory(); }
     if (name === 'admin') { if(databaseMode&&can(currentStaffRole(),'manageMembers'))refreshMemberDirectory(); renderAdminFactions(); renderAdminClaims(); renderPremiumClaims(); renderCommunityXpClaims(); renderAdminStaff(); renderAdminModerators(); renderAdminNotes(); renderAdminMembers(); applyAdminPermissions(); if(databaseMode&&data.currentUserId){refreshBackendAdminData();refreshAdminChatData();} }
     if (name === 'premium') { renderPremiumAccess(); renderSupportOptions(); renderPaypalSubscription(); }
-    if (name === 'store') { renderRewardShop(); if(databaseMode&&data.currentUserId)void renderCoinLedger(); }
+    if (name === 'store') { renderRewardShop(); void renderCoinCheckout(); if(databaseMode&&data.currentUserId)void renderCoinLedger(); }
   }
   function updateNotificationBadge() {
     const button=document.getElementById('notification-button'),badge=button?.querySelector('.notification-count');
@@ -396,6 +396,77 @@
         return '<div class="admin-staff-row"><span><b>'+esc(source)+'</b><small>'+esc(when)+'</small></span><b style="color:'+(earned?'var(--cyan)':'var(--red)')+'">'+(earned?'+':'−')+num(Math.abs(Number(row.amount)))+' VA Coins</b></div>';
       }).join('')+'</div>';
     }catch(error){host.innerHTML='<p class="demo-note">Wallet activity could not be loaded right now.</p>';console.warn('Coin activity unavailable:',error.message);}
+  }
+  let paypalCoinSdkPromise=null,paypalCoinRenderedClient='';
+  function loadPaypalCoinSdk(clientId){
+    if(window.paypal&&paypalCoinRenderedClient===clientId)return Promise.resolve(window.paypal);
+    const subscriptionSdk=document.getElementById('paypal-subscription-sdk');
+    if(window.paypal&&!document.getElementById('paypal-coin-sdk')){
+      if(subscriptionSdk)throw new Error('Reload this page before starting a one-time PayPal checkout.');
+      return Promise.resolve(window.paypal);
+    }
+    if(paypalCoinSdkPromise)return paypalCoinSdkPromise;
+    paypalCoinSdkPromise=new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.id='paypal-coin-sdk';
+      script.src='https://www.paypal.com/sdk/js?client-id='+encodeURIComponent(clientId)+'&currency=GBP&intent=capture&components=buttons';
+      script.async=true;
+      script.addEventListener('load',()=>resolve(window.paypal),{once:true});
+      script.addEventListener('error',()=>{paypalCoinSdkPromise=null;reject(new Error('PayPal checkout could not load.'));},{once:true});
+      document.head.append(script);
+    });
+    return paypalCoinSdkPromise;
+  }
+  async function renderCoinCheckout(){
+    const status=document.getElementById('coin-checkout-status'),badge=document.getElementById('coin-checkout-badge');
+    const keys=['starter','popular','bundle'];
+    const buttons=()=>keys.map(key=>document.querySelector('[data-coin-pack="'+key+'"]')).filter(Boolean);
+    if(!databaseMode||!data.currentUserId){
+      if(status)status.textContent='Sign in to buy VA Coins. Your XP exchange and wallet activity are private to your account.';
+      if(badge)badge.textContent='SIGN IN REQUIRED';
+      buttons().forEach(button=>{button.disabled=false;button.textContent='SIGN IN TO BUY';});
+      return;
+    }
+    try{
+      const backend=await window.VABackendReady,setup=await backend.coinCheckoutStatus();
+      if(!setup?.ready||!setup.clientId){
+        if(status)status.textContent='PayPal checkout needs your PayPal REST App credentials in Supabase before anyone can pay. No payment is taken until server verification is ready.';
+        if(badge)badge.textContent='PAYPAL SETUP REQUIRED';
+        buttons().forEach(button=>{button.disabled=true;button.textContent='SETUP REQUIRED';});
+        return;
+      }
+      if(status)status.textContent='Secure PayPal checkout is ready. Pack prices and coin amounts are fixed on the server; coins are added only after PayPal confirms capture.';
+      if(badge)badge.textContent='PAYPAL VERIFIED';
+      const sdk=await loadPaypalCoinSdk(setup.clientId);
+      if(!sdk?.Buttons)throw new Error('PayPal checkout buttons are unavailable.');
+      for(const key of keys){
+        let mount=document.getElementById('paypal-coin-'+key);
+        if(!mount){
+          const button=document.querySelector('[data-coin-pack="'+key+'"]');if(!button)continue;
+          mount=document.createElement('div');mount.id='paypal-coin-'+key;button.replaceWith(mount);
+        }
+        if(mount.dataset.rendered==='true')continue;
+        mount.dataset.rendered='true';
+        sdk.Buttons({
+          style:{shape:'pill',layout:'vertical',label:'paypal'},
+          createOrder:async()=>{const result=await backend.createCoinOrder(key);if(!result?.orderId)throw new Error('PayPal did not create an order.');return result.orderId;},
+          onApprove:async details=>{
+            try{
+              const result=await backend.captureCoinOrder(details.orderID);
+              await refreshBackendWallet(backend);await renderCoinLedger();
+              showToast(num(result.coins||0)+' VA Coins added to your wallet.');
+            }catch(error){showToast(error.message||'Payment confirmation is pending. Reload the store to check your wallet.');}
+          },
+          onCancel:()=>showToast('PayPal checkout was cancelled. No VA Coins were charged.'),
+          onError:error=>{console.warn('PayPal checkout error:',error?.message||'unknown');showToast('PayPal could not complete checkout. Please try again.');}
+        }).render('#'+mount.id).catch(error=>{mount.dataset.rendered='';console.warn('PayPal button render failed:',error.message);showToast('PayPal checkout could not load.');});
+      }
+      paypalCoinRenderedClient=setup.clientId;
+    }catch(error){
+      if(status)status.textContent='PayPal checkout is temporarily unavailable. No payment has been taken.';
+      if(badge)badge.textContent='CHECKOUT UNAVAILABLE';
+      console.warn('VA Coin checkout setup unavailable:',error.message);
+      buttons().forEach(button=>{button.disabled=true;button.textContent='CHECKOUT UNAVAILABLE';});
+    }
   }
   function applyProfileCosmetics(){const cover=document.querySelector('.profile-cover');if(!cover)return;const frame=rewardCatalog.find(item=>item.id===data.equipped.frame),banner=rewardCatalog.find(item=>item.id===data.equipped.banner),effect=rewardCatalog.find(item=>item.id===data.equipped.effect),title=rewardCatalog.find(item=>item.id===data.equipped.title);cover.classList.toggle('has-crimson-frame',Boolean(frame));cover.classList.toggle('has-neon-banner',Boolean(banner));cover.classList.toggle('has-legendary-effect',Boolean(effect));let titleTag=document.getElementById('equipped-profile-title');if(title&&!titleTag){titleTag=document.createElement('small');titleTag.id='equipped-profile-title';titleTag.className='equipped-profile-title';document.getElementById('profile-bio').after(titleTag);}if(titleTag){titleTag.textContent=title?title.name:'';titleTag.hidden=!title;}}
   function renderCommunityMissions(){const host=document.getElementById('community-xp-missions-list');if(!host)return;const username=data.profile.display;const cards=communityMissionCatalog().map(mission=>{const claim=[...(data.communityClaims||[])].reverse().find(item=>item.username.toLowerCase()===username.toLowerCase()&&item.missionId===mission.id),proof=String(data.profile[mission.proofKey]||'');const status=claim?.status||'',label=status==='approved'?'COMPLETED':status==='pending'?'IN REVIEW':status==='declined'?'TRY AGAIN':'CLAIM XP';const rawLink=mission.href||proof;let link='';try{const parsed=new URL(rawLink);if(parsed.protocol==='https:')link=parsed.href;}catch{}return `<article class="community-xp-mission"><div class="mission-topline"><span class="eyebrow">${esc(mission.platform)} · COMMUNITY XP</span><b>+${mission.xp} XP</b></div><h3>${esc(mission.name)}</h3><form data-community-claim="${esc(mission.id)}"><label>Your ${esc(mission.platform)} username or profile URL<input class="field-input" name="proof" maxlength="120" value="${esc(proof)}" placeholder="Add your profile or username" required ${status==='approved'||status==='pending'?'disabled':''}></label><button class="button ${status==='approved'||status==='pending'?'button-secondary':'button-primary'}" type="submit" ${status==='approved'||status==='pending'?'disabled':''}>${label}</button></form>${link?`<a class="mission-visit-link" href="${esc(link)}" target="_blank" rel="noreferrer">OPEN ${esc(mission.platform.toUpperCase())} ↗</a>`:''}${status==='pending'?'<small class="mission-state">A staff member will verify your join/follow.</small>':''}</article>`;}).join('');const approvedFactions=data.factionClaims.filter(claim=>claim.status==='approved');const pendingFactions=data.factionClaims.filter(claim=>claim.status==='pending');const factionText=approvedFactions.length?`Verified: ${approvedFactions.map(claim=>esc(claim.factionName)).join(', ')}`:pendingFactions.length?'Your faction claim is waiting for in-game verification.':'Apply to a faction and receive +250 XP after an admin confirms your membership.';host.innerHTML=`<article class="community-xp-mission faction-xp-mission"><div class="mission-topline"><span class="eyebrow">GUILDS &amp; FACTIONS · COMMUNITY XP</span><b>+250 XP</b></div><h3>Join a faction</h3><p>${factionText}</p><button class="button button-secondary" data-go="profile">VIEW FACTION CLAIMS ↗</button></article>${cards}`;}
@@ -591,7 +662,7 @@
     const buyButton = e.target.closest('[data-buy-reward]'); if (buyButton) { buyReward(buyButton.dataset.buyReward); return; }
     const equipButton=e.target.closest('[data-equip-reward]');if(equipButton){equipReward(equipButton.dataset.equipReward);return;}
     const exchange=e.target.closest('[data-exchange-xp]');if(exchange){const xp=Number(exchange.dataset.exchangeXp),coins=Number(exchange.dataset.exchangeCoins);if(data.spendableXp<xp){showToast(`You need ${num(xp-data.spendableXp)} more spendable XP.`);return;}if(databaseMode){try{const backend=await window.VABackendReady;await backend.exchangeXp(xp,crypto.randomUUID());await refreshBackendWallet(backend);showToast(`${num(xp)} XP exchanged for ${num(coins)} VA Coins. Your level is unchanged.`);}catch(error){showToast(error.message||'XP could not be exchanged.');}return;}data.spendableXp-=xp;data.wallet+=coins;persist();update();showToast(`${num(xp)} XP exchanged for ${num(coins)} VA Coins. Your level is unchanged.`);return;}
-    const coinPack=e.target.closest('[data-coin-pack]');if(coinPack){showToast('Real-money VA Coin checkout is planned; no payment was taken.');return;}
+    const coinPack=e.target.closest('[data-coin-pack]');if(coinPack){showToast('PayPal checkout is not ready yet. No payment was taken.');return;}
     const lockButton = e.target.closest('[data-level-lock]'); if (lockButton) { showToast(`Reach level ${lockButton.dataset.levelLock} to unlock this reward.`); return; }
     const previewButton=e.target.closest('#preview-player-button'); if(previewButton){setNewPlayerPreview(!isNewPlayerPreview());return;}
     const modalButton = e.target.closest('[data-modal]'); if (modalButton) { openModal(modalButton.dataset.modal,modalButton.dataset.authMode||''); }
