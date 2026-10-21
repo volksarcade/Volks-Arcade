@@ -24,7 +24,7 @@
       <nav class="main-nav" aria-label="Main navigation">
         <button class="nav-item active" data-route="home"><span class="nav-icon">⌂</span><span>Home</span><kbd>01</kbd></button>
         <button class="nav-item" data-route="content"><span class="nav-icon">▣</span><span>Content</span><kbd>02</kbd></button>
-        <button class="nav-item" data-route="arcade"><span class="nav-icon">✳</span><span>Arcade</span><span class="nav-pill">6 GAMES</span></button>
+        <button class="nav-item" data-route="arcade"><span class="nav-icon">✳</span><span>Arcade</span><span class="nav-pill">13 GAMES</span></button>
         <button class="nav-item" data-route="store"><span class="nav-icon">▧</span><span>VA Store</span><span class="nav-pill">COINS</span></button>
         <button class="nav-item" data-route="community"><span class="nav-icon">◎</span><span>Community</span><kbd>05</kbd></button>
         <button class="nav-item" data-route="platform"><span class="nav-icon">▤</span><span>Platform chat</span><span class="nav-pill">LIVE</span></button>
@@ -90,7 +90,7 @@
 
           <div class="section-heading"><div><span class="eyebrow">YOUR WORLD, AT A GLANCE</span><h2>Arcade <span>dashboard</span></h2></div><button class="text-link" data-go="community">OPEN COMMUNITY ↗</button></div>
           <div class="dashboard-grid">
-            <article class="feature-card arcade-feature"><div class="feature-head"><span class="feature-index">01 / ARCADE</span><span class="soon-tag"><i></i> GAMES LIVE · PER-GAME XP + STREAKS</span></div><div class="pixel-orbit"><span>✳</span><i></i></div><h3>Quick play.<br/><em>Real bragging rights.</em></h3><p>Earn +15 XP every time you finish a game, with no daily per-game cap. Daily challenge, streak and weekly bonus XP are separate.</p><button class="button button-dark" data-go="arcade">Enter arcade <b>↗</b></button></article>
+            <article class="feature-card arcade-feature"><div class="feature-head"><span class="feature-index">01 / ARCADE</span><span class="soon-tag"><i></i> GAMES LIVE · PER-GAME XP + STREAKS</span></div><div class="pixel-orbit"><span>✳</span><i></i></div><h3>Quick play.<br/><em>Real bragging rights.</em></h3><p>Earn XP as you play. Tetris and Space Invaders award more for each level or wave; wins in longer games award 100 XP. Daily challenge, streak and weekly bonus XP are separate.</p><button class="button button-dark" data-go="arcade">Enter arcade <b>↗</b></button></article>
             <article class="feature-card stream-feature"><div class="feature-head"><span class="feature-index">02 / CREATOR FEED</span><span class="soon-tag"><i></i> LATEST CLIPS</span></div><div class="home-creator-clips" id="home-creator-clips" aria-label="Recent creator videos"></div><h3>From the <em>front lines.</em></h3><p>Tap a clip to open the full creator feed with playable videos and recent TikTok posts.</p><button class="text-link" data-go="content">VIEW CONTENT ↗</button></article>
             <article class="feature-card activity-feature"><div class="feature-head"><span class="feature-index">03 / COMMUNITY ACTIVITY</span><span class="preview-chip">RECENT JOINS</span></div><div class="activity-list" id="home-activity-list"><div class="empty-state">Loading recent players…</div></div><button class="text-link" data-go="community">SEE COMMUNITY ↗</button></article>
           </div>
@@ -165,8 +165,8 @@
   <div class="modal-backdrop" id="modal-backdrop" aria-hidden="true"><section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="close-button modal-close" id="modal-close" aria-label="Close">×</button><div class="eyebrow" id="modal-eyebrow">PLAYER SETTINGS</div><h2 id="modal-title">Edit profile</h2><div id="modal-body"></div></section></div>
   <div class="game-backdrop" id="game-backdrop" aria-hidden="true"><section class="game-modal" role="dialog" aria-modal="true" aria-labelledby="game-title"><div class="game-modal-top"><div><span class="eyebrow" id="game-mode-label">ARCADE GAME</span><h2 id="game-title">Snake</h2></div><button class="close-button" id="game-close" aria-label="Close game">×</button></div><div id="game-mount"></div></section></div>
   <script src="backend-config.js"></script>
-  <script src="backend-client.js?v=20261016-game-progression1"></script>
-  <script src="app.js?v=20261016-game-progression1"></script>
+  <script src="backend-client.js?v=20261021-xp-grant-hardening1"></script>
+  <script src="app.js?v=20261021-xp-grant-hardening1"></script>
 </body>
 </html>
 
