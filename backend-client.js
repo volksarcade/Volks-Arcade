@@ -7,6 +7,9 @@
     const client = createClient(config.supabaseUrl, config.publishableKey, {
       auth: { flowType: 'pkce', autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
     });
+    client.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') window.dispatchEvent(new CustomEvent('va-password-recovery'));
+    });
     const unwrap = result => {
       if (result.error) throw result.error;
       return result.data;
@@ -18,6 +21,12 @@
       },
       async signIn(email, password) {
         return unwrap(await client.auth.signInWithPassword({ email, password }));
+      },
+      async requestPasswordReset(email) {
+        return unwrap(await client.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}${window.location.pathname}` }));
+      },
+      async updatePassword(password) {
+        return unwrap(await client.auth.updateUser({ password }));
       },
       async signInWithGoogle() {
         return unwrap(await client.auth.signInWithOAuth({
