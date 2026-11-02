@@ -431,8 +431,10 @@
     try{
       const backend=await window.VABackendReady,setup=await backend.coinCheckoutStatus();
       if(!setup?.ready||!setup.clientId){
-        if(status)status.textContent='PayPal checkout needs your PayPal REST App credentials in Supabase before anyone can pay. No payment is taken until server verification is ready.';
-        if(badge)badge.textContent='PAYPAL SETUP REQUIRED';
+        const merchantRequired=setup?.reason==='paypal_merchant_id_required';
+        const merchantInvalid=setup?.reason==='paypal_merchant_id_invalid';
+        if(status)status.textContent=merchantRequired?'Live checkout stays disabled until PAYPAL_MERCHANT_ID is set in Supabase to the 13-character merchant ID for the same PayPal business as the Live app. No payment is taken until that seller is verified.':merchantInvalid?'PAYPAL_MERCHANT_ID must be the valid 13-character merchant ID for the PayPal business that owns the Live REST app. Checkout remains disabled until it is corrected.':'PayPal checkout needs your PayPal REST App credentials in Supabase before anyone can pay. No payment is taken until server verification is ready.';
+        if(badge)badge.textContent=merchantRequired||merchantInvalid?'MERCHANT CHECK REQUIRED':'PAYPAL SETUP REQUIRED';
         buttons().forEach(button=>{button.disabled=true;button.textContent='SETUP REQUIRED';});
         return;
       }
