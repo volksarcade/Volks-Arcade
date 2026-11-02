@@ -324,6 +324,8 @@
     document.getElementById('home-display-name').textContent = p.display.toUpperCase();
     document.getElementById('home-level-label').textContent = `LEVEL ${lv.level}`;
     document.getElementById('xp-current').textContent = num(data.xp);
+    const xpThreshold = document.querySelector('#xp-current + small');
+    if (xpThreshold) xpThreshold.textContent = `/ ${num(lv.ceiling)} XP`;
     document.getElementById('xp-fill').style.width = `${lv.percent}%`;
     document.getElementById('next-level-copy').textContent = `${num(Math.max(0, lv.ceiling - data.xp))} XP TO LEVEL ${lv.level + 1}`;
     document.getElementById('stat-achievements').textContent = String(profileBadgeList().length).padStart(2, '0');
