@@ -4,14 +4,14 @@
   const dayKey = new Date().toISOString().slice(0, 10);
   const defaults = {
     profile: { display: 'VOLK', bio: 'The Future is not a river to carry us.', favoriteGames: 'Star Citizen, Sea of Thieves', discord: '', twitch: 'https://www.twitch.tv/volksarcade', kick: 'https://kick.com/volksarcade', youtube: 'https://www.youtube.com/@VolksArcade', steam: 'https://steamcommunity.com/profiles/76561198924911916/', tiktok: 'https://www.tiktok.com/@volksarcade', instagram: 'https://www.instagram.com/volksarcade/', public: true, online: true, avatar: '', logo: '', banner: '' },
-    xp: 4280, spendableXp: 4280, wallet: 0, accountCreated:true, platformChats:{global:[{id:'welcome',author:'VOLKS ARCADE',rank:'SYSTEM',text:'Welcome to the Platform chat. Pick a crew room on the left and keep it respectful.',createdAt:new Date().toISOString()}]}, activeChatRoom:'global', moderationHistory:[], economyVersion: 2, premiumTrial: { used:false, expiresAt:'' }, level: 18, badges: ['Arcade Regular', 'Star Citizen', 'Community', 'Event Winner', 'Faction Member', 'Veteran', 'First Game Played', 'Creator'],
+    xp: 0, spendableXp: 0, wallet: 0, accountCreated:false, platformChats:{global:[{id:'welcome',author:'VOLKS ARCADE',rank:'SYSTEM',text:'Welcome to the Platform chat. Pick a crew room on the left and keep it respectful.',createdAt:new Date().toISOString()}]}, activeChatRoom:'global', moderationHistory:[], economyVersion: 2, premiumTrial: { used:false, expiresAt:'' }, level: 18, badges: ['Arcade Regular', 'Star Citizen', 'Community', 'Event Winner', 'Faction Member', 'Veteran', 'First Game Played', 'Creator'],
     owned: [], equipped: {}, snakeBest: 0, tetrisBest: 0, reactionBest: null, rewards: {}, factions: [],
     factionClaims: [
       { claimId:'claim-volkah-preview', username:'VOLK', factionId:'house-volkah', factionName:"House of Vol'Kah", game:'Star Trek Online', characterName:"Vol'Kah", claimedRank:'JoH — Leader of the House', status:'approved', submittedAt:'Owner profile', reviewedBy:'EmperorVolkorian' },
       { claimId:'claim-ueeif-colonel-preview', username:'VOLK', factionId:'ueeif', factionName:'United Empire of Earth Imperial Fleet (UEEIF)', game:'Star Citizen', characterName:'EmperorVolkorian', claimedRank:'Colonel', status:'approved', submittedAt:'Owner profile', reviewedBy:'EmperorVolkorian' },
       { claimId:'claim-vampiric-overlord-preview', username:'VOLK', factionId:'vampiric-hierarchy', factionName:'Vampiric Hierarchy', game:'The Elder Scrolls Online', characterName:'EmperorVolkorian', claimedRank:'Vampire Overlord', status:'approved', submittedAt:'Owner profile', reviewedBy:'EmperorVolkorian' }
     ],
-    staffAccess: [{id:'staff-owner',username:'VOLK',gameHandle:'EmperorVolkorian',role:'Owner'}], moderatorAssignments: [], moderatorApplications: [], staffNotes: [], communityClaims: [], memberOverrides: {}, removedMembers: [], premiumApplications: [],
+    staffAccess: [], moderatorAssignments: [], moderatorApplications: [], staffNotes: [], communityClaims: [], memberOverrides: {}, removedMembers: [], premiumApplications: [],
     daily: {}, supportLinks:{paypal:'https://www.paypal.biz/volksarcade',subscription:''}, settings: { profilePublic: true, showActivity: true, showOnline: true, reducedMotion: false }, chats: {}
   };
   let data = load();
@@ -44,7 +44,7 @@
     }
   } catch {}
   let streakReminderTimer;
-  if (databaseMode) clearLiveGuestState();
+  clearLiveGuestState();
   data.spendableXp = Math.max(0, Number(data.spendableXp) || 0);
   data.wallet = Math.max(0, Number(data.wallet) || 0);
   data.premiumTrial = { used:Boolean(data.premiumTrial?.used), expiresAt:String(data.premiumTrial?.expiresAt || '') };
@@ -860,6 +860,7 @@
         if(signup&&supporterRequested&&chosen==='Other'&&!otherSource){showToast('Enter the name of the other subscription or support platform.');return;}
         if(signup&&!username)return;
         if(!email){showToast('Enter the email for your player account.');return;}
+        if(!databaseMode){showToast('Account services are unavailable right now. Please try again shortly.');return;}
         if(databaseMode){
           try {
             const backend=await window.VABackendReady;
@@ -873,15 +874,6 @@
               if(modRequested&&scopes.length)await backend.submitModeratorApplication({user_id:auth.user.id,requested_scopes:scopes,decisions:Object.fromEntries(scopes.map(scope=>[scope,'pending']))});
             }
           } catch(error) { showToast('Account setup failed: '+(error.message||'Please try again.'));return;}
-        }
-        if(signup&&!databaseMode){
-          if(!isNewPlayerPreview()){previewOriginalProfile=structuredClone(data.profile);previewOriginalXp={xp:data.xp,spendableXp:data.spendableXp,wallet:data.wallet,level:data.level,badges:[...data.badges]};}
-          data.profile={...defaults.profile,display:username,bio:'New to Volks Arcade.',favoriteGames:'',discord:'',twitch:'',kick:'',youtube:'',steam:'',tiktok:'',instagram:'',avatar:'',logo:'',banner:'',public:true,online:false};
-          data.xp=0;data.spendableXp=0;data.wallet=0;data.accountCreated=true;data.level=1;data.badges=[];
-          for(const check of form.querySelectorAll('[data-faction-select]:checked')){const id=check.dataset.factionSelect,faction=factionCatalog().find(item=>item.id===id);if(!faction)continue;data.factionClaims.push({claimId:`claim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,username,factionId:id,factionName:faction.name,game:faction.game,characterName:String(fd.get(`character-${id}`)||username).trim(),claimedRank:String(fd.get(`rank-${id}`)||faction.ranks[0]||'Member').trim(),status:'pending',submittedAt:new Date().toISOString()});}
-          if(supporterRequested&&chosen)data.premiumApplications.push({id:`premium-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,username,type:chosen==='Other'?`Other · ${supportPlatform}`:chosen,kind:/donat/i.test(chosen)?'donation':'subscription',amount:'',durationMonths:0,platform:supportPlatform,reference:hasCode?'Access code submitted':'Support details to verify',codeProvided:hasCode,accessCode:hasCode?accessCode:'',status:'pending',submittedAt:new Date().toISOString()});
-          if(modRequested&&scopes.length)data.moderatorApplications.push({id:`modapp-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,username,scopes,decisions:Object.fromEntries(scopes.map(scope=>[scope,'pending'])),status:'pending',submittedAt:new Date().toISOString()});
-          if(signupPlan)data.selectedSignupPlan=signupPlan;
         }
         persist();passwordInput.value='';confirmInput.value='';codeInput.value='';closeModal();update();route(signup&&signupPlan?'premium':'home');
         if(signup&&signupPlan){const planType=document.querySelector('#premium-application-form [name="type"]');if(planType)planType.value=signupPlan;document.getElementById('support-volks-panel')?.scrollIntoView({behavior:'smooth',block:'start'});showToast(`${username}'s preview profile is ready. Continue with the selected website membership on PayPal.`);}
