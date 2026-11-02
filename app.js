@@ -317,7 +317,7 @@
     document.getElementById('open-profile').hidden=!authenticated;
     document.body.classList.toggle('staff-authorized',staffVisible);
     document.body.classList.toggle('account-authorized',authenticated);
-    const heroOverview=document.querySelector('.hero-grid > article:nth-child(2)');if(heroOverview)heroOverview.hidden=!authenticated;
+    const playerOverview=document.querySelector('.welcome-panel');if(playerOverview)playerOverview.hidden=!authenticated;
     document.getElementById('side-name').textContent = authenticated ? p.display.toUpperCase() : '';
     document.getElementById('side-level').textContent = lv.level;
     document.getElementById('welcome-name').textContent = p.display.split(/[ _]/)[0] || 'Player';
