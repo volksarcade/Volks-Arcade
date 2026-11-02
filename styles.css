@@ -302,11 +302,11 @@ body:not(.account-authorized) #page-platform { display: none !important; }
   .top-wallet{gap:3px;padding-right:5px;padding-left:5px}
 }
 
-/* Phone controls: increase spacing and hit area for touch play. */
+/* Phone controls: larger touch targets with clear spacing between actions. */
 @media(max-width:620px){
-  .game-control-row .mobile-controls{align-self:center;grid-template-columns:repeat(3,56px);gap:12px;width:100%;max-width:192px;justify-content:center;margin:10px auto 6px}
-  .mobile-controls button{width:56px;height:56px;font-size:20px;touch-action:manipulation}
-  .tetris-controls{gap:12px;justify-content:center;width:100%;padding:6px 0}
-  .tetris-controls button{height:48px;min-width:44px;padding:0 8px;font-size:14px;touch-action:manipulation}
-  .tetris-controls button[data-tetris-action="drop"]{min-width:64px}
+  .game-control-row .mobile-controls{align-self:center;grid-template-columns:repeat(3,60px);gap:18px;width:100%;max-width:216px;justify-content:center;margin:14px auto 10px}
+  .mobile-controls button{width:60px;height:60px;font-size:21px;touch-action:manipulation}
+  .tetris-controls{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr));gap:12px;width:100%;padding:10px 0}
+  .tetris-controls button{height:52px;min-width:44px;padding:0 8px;font-size:15px;touch-action:manipulation}
+  .tetris-controls button[data-tetris-action="drop"]{grid-column:1/-1;min-width:0}
 }
