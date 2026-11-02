@@ -27,12 +27,16 @@ function settings() {
   const mode = Deno.env.get("PAYPAL_MODE") || "";
   const clientId = Deno.env.get("PAYPAL_CLIENT_ID") || "";
   const clientSecret = Deno.env.get("PAYPAL_CLIENT_SECRET") || "";
+  const merchantId = Deno.env.get("PAYPAL_MERCHANT_ID")?.trim() || "";
+  const merchantIdValid = /^[2-9A-HJ-NP-Z]{13}$/.test(merchantId);
   const secretMap = Deno.env.get("SUPABASE_SECRET_KEYS");
   let newSecret = "";
   try { newSecret = secretMap ? (JSON.parse(secretMap).default || "") : ""; } catch { /* use legacy environment below */ }
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || newSecret;
   const baseUrl = mode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
-  return { mode, clientId, clientSecret, supabaseKey, baseUrl, configured: Boolean(clientId && clientSecret && supabaseKey && (mode === "live" || mode === "sandbox")) };
+  const coreConfigured = Boolean(clientId && clientSecret && supabaseKey && (mode === "live" || mode === "sandbox"));
+  const configured = coreConfigured && (mode === "sandbox" || (mode === "live" && merchantIdValid));
+  return { mode, clientId, clientSecret, merchantId, merchantIdValid, supabaseKey, baseUrl, coreConfigured, configured };
 }
 function publishableKey() {
   const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
@@ -113,7 +117,10 @@ Deno.serve(async (req: Request) => {
   const action = body?.action;
 
   if (action === "status") {
-    if (!cfg.configured) return json(req, { ready: false, reason: "paypal_setup_required" });
+    if (!cfg.configured) {
+      const reason = !cfg.coreConfigured ? "paypal_setup_required" : !cfg.merchantId ? "paypal_merchant_id_required" : "paypal_merchant_id_invalid";
+      return json(req, { ready: false, reason });
+    }
     try {
       await paypalToken(cfg);
       return json(req, { ready: true, clientId: cfg.clientId, mode: cfg.mode });
@@ -135,6 +142,7 @@ Deno.serve(async (req: Request) => {
         intent: "CAPTURE",
         purchase_units: [{
           reference_id: packageKey,
+          ...(cfg.mode === "live" ? { payee: { merchant_id: cfg.merchantId } } : {}),
           custom_id: user.id,
           description: "VOLKS ARCADE · " + pack.name,
           amount: { currency_code: "GBP", value: pack.amount, breakdown: { item_total: { currency_code: "GBP", value: pack.amount } } },
@@ -159,6 +167,17 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify(orderBody),
       });
       if (typeof paypalOrder.id !== "string") throw new Error("PayPal did not return an order ID.");
+      if (cfg.mode === "live") {
+        const verifiedOrder = await paypalRequest(cfg, token, "/v2/checkout/orders/" + encodeURIComponent(paypalOrder.id));
+        const verifiedUnit = verifiedOrder?.purchase_units?.length === 1 ? verifiedOrder.purchase_units[0] : null;
+        if (verifiedUnit?.payee?.merchant_id !== cfg.merchantId
+            || verifiedUnit?.custom_id !== user.id
+            || verifiedUnit?.amount?.currency_code !== "GBP"
+            || verifiedUnit?.amount?.value !== pack.amount) {
+          console.error("PayPal order merchant verification failed before checkout.");
+          return json(req, { error: "Live PayPal seller verification failed before checkout. No payment was accepted." }, 409);
+        }
+      }
       await databaseRequest(cfg, "va_coin_orders", {
         method: "POST",
         headers: { Prefer: "return=minimal" },
@@ -208,8 +227,7 @@ Deno.serve(async (req: Request) => {
           || capture.amount?.value !== (Number(savedOrder.amount_pence) / 100).toFixed(2)) {
         return json(req, { error: "PayPal has not confirmed a completed payment. No coins were credited." }, 409);
       }
-      const merchantId = Deno.env.get("PAYPAL_MERCHANT_ID");
-      if (merchantId && unit?.payee?.merchant_id !== merchantId) {
+      if (cfg.mode === "live" && (!cfg.merchantIdValid || unit?.payee?.merchant_id !== cfg.merchantId)) {
         return json(req, { error: "PayPal payment was sent to an unexpected merchant account. Contact support." }, 409);
       }
       const fulfilled = await databaseRequest(cfg, "rpc/fulfill_va_coin_order", {
