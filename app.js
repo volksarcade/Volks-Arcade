@@ -520,7 +520,7 @@
     if (databaseMode) {
       if(!data.currentUserId)return false;
       const gameNames={snake:'Snake',ladders:'Snakes & Ladders',reaction:'Reaction Test',tetris:'Tetris',checkers:'Checkers',noughts:'Noughts & Crosses',chess:'Chess',pacman:'Pac-Man','space-invaders':'Space Invaders',dino:'Dino Run',pong:'Pong','flappy-bird':'Flappy Bird',breakout:'Breakout'};
-      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess','dino','flappy-bird'];
+      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess','dino','flappy-bird','pong'];
       const gameName=gameNames[game]||'This game';
       showToast(verifiedGames.includes(game)?`${gameName} did not award XP because this run was not verified.`:`${gameName} XP rewards are coming soon. This run did not award XP.`);
       return false;
@@ -1498,10 +1498,59 @@
     arcadeKeys(key=>{if(key===' '||key==='ArrowUp'||key==='w'||key==='W')jump()});mount.querySelector('[data-dino-jump]').addEventListener('click',jump);ui.canvas.addEventListener('pointerdown',jump);ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderPong(mount) {
-    const ui=arcadeCanvasShell(mount,'PONG // VS ARCADE CPU',640,360,'Move with W/S, ↑/↓, mouse or touch. First to 7 points wins.','<button data-pong="up">↑</button><button data-pong="down">↓</button>'),ctx=ui.ctx;let paddle,ai,ball,score,aiScore,ended,last,move=0;
-    function fresh(){paddle=160;ai=160;ball={x:320,y:180,vx:4,vy:2};score=0;aiScore=0;ended=false;last=0;move=0;ui.status.textContent='YOU 0 : 0 CPU';arcadeFrame=requestAnimationFrame(tick)}
-    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now))/16;last=now;paddle=Math.max(0,Math.min(320,paddle+move*6*dt));const intercept=ball.vx>0?ball.y+ball.vy*((622-ball.x)/Math.max(1,ball.vx))*.55:180;const target=Math.max(0,Math.min(320,intercept-20));ai+=Math.max(-7*dt,Math.min(7*dt,target-ai));ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;if(ball.y<8||ball.y>352)ball.vy*=-1;if(ball.vx<0&&ball.x<34&&Math.abs(ball.y-(paddle+20))<28){ball.vx=Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(paddle+20))*.08}if(ball.vx>0&&ball.x>606&&Math.abs(ball.y-(ai+20))<28){ball.vx=-Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(ai+20))*.08}if(ball.x<-8){aiScore++;ball={x:320,y:180,vx:4,vy:2}}if(ball.x>648){score++;ball={x:320,y:180,vx:-4,vy:2}}if(score>=7||aiScore>=7){ended=true;ui.status.textContent=score>=7?'YOU WIN':'CPU WINS';if(score>=7)arcadeFinish(ui,'pong',score,true)}ctx.fillStyle='#070a0e';ctx.fillRect(0,0,640,360);ctx.setLineDash([8,8]);ctx.strokeStyle='#333a47';ctx.beginPath();ctx.moveTo(320,0);ctx.lineTo(320,360);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f04b4d';ctx.fillRect(20,paddle,12,40);ctx.fillStyle='#6ad8db';ctx.fillRect(608,ai,12,40);ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f6ead0';ctx.fill();ctx.fillStyle='#ddd';ctx.font='24px monospace';ctx.fillText(score+'     '+aiScore,285,38);arcadeFrame=requestAnimationFrame(tick)}
-    arcadeKeys(key=>{if(['ArrowUp','w','W'].includes(key))move=-1;if(['ArrowDown','s','S'].includes(key))move=1});window.addEventListener('keyup',e=>{if(['ArrowUp','ArrowDown','w','W','s','S'].includes(e.key))move=0},{signal:gameKeyController.signal});ui.canvas.addEventListener('pointermove',e=>{const r=ui.canvas.getBoundingClientRect();paddle=Math.max(0,Math.min(320,(e.clientY-r.top)*360/r.height-20))});mount.querySelectorAll('[data-pong]').forEach(b=>b.addEventListener('pointerdown',()=>move=b.dataset.pong==='up'?-1:1));mount.querySelectorAll('[data-pong]').forEach(b=>b.addEventListener('pointerup',()=>move=0));ui.reset.addEventListener('click',fresh);fresh();
+    const ui=arcadeCanvasShell(mount,'PONG // SERVER-VERIFIED CPU MATCH',640,360,'Move with W/S or ↑/↓, or use the separated direction buttons. First to 7 points wins; signed-in scores are replayed by the server.','<button data-pong="up" aria-label="Move paddle up">↑</button><button data-pong="down" aria-label="Move paddle down">↓</button>'),ctx=ui.ctx;
+    let paddle,ai,ball,score,aiScore,ended,move,frames,inputs,verifiedRun,accumulator,last,starting,submitting;
+    function resetBall(direction){ball={x:320,y:180,vx:direction*4,vy:2}}
+    function fresh(){
+      cancelAnimationFrame(arcadeFrame);paddle=160;ai=160;resetBall(1);score=0;aiScore=0;ended=false;move=0;frames=0;inputs=[];verifiedRun=null;accumulator=0;last=0;starting=true;submitting=false;
+      ui.score.textContent='0';ui.status.textContent=databaseMode&&data.currentUserId?'CONNECTING TO VERIFIED MATCH…':'LOCAL MATCH · XP NEEDS SIGN-IN';
+      const prepare=async()=>{
+        if(databaseMode&&data.currentUserId){try{const backend=await window.VABackendReady;verifiedRun=await backend.startVerifiedBoardRun('pong')}catch(error){showToast(error.message||'Could not start a verified Pong match. You can still play; this match will not award XP.')}}
+        ui.status.textContent=verifiedRun?'VERIFIED MATCH · FIRST TO 7':'LOCAL MATCH · XP UNAVAILABLE';starting=false;arcadeFrame=requestAnimationFrame(tick);
+      };
+      void prepare();
+    }
+    function finishRun(){
+      if(submitting)return;submitting=true;ui.status.textContent='MATCH OVER · VERIFYING RESULT…';
+      if(!databaseMode||!data.currentUserId||!verifiedRun){ui.status.textContent='MATCH OVER · NO VERIFIED XP';showToast('This Pong result was not server-verified, so no XP was awarded.');return}
+      void (async()=>{try{
+        const backend=await window.VABackendReady,result=await backend.finishVerifiedBoardRun('pong',verifiedRun.runId,{frames,inputs});
+        ui.status.textContent=result.xp_reward?'VERIFIED WIN · +'+result.xp_reward+' XP':'VERIFIED MATCH · NO WIN BONUS';
+        showToast(result.xp_reward?'+100 XP · Verified Pong win':'Pong match verified; the 100 XP reward is for a win.');
+        await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards();
+      }catch(error){ui.status.textContent='MATCH OVER · RESULT NOT VERIFIED';showToast(error.message||'Pong result could not be verified. No XP was awarded.')}})();
+    }
+    function step(){
+      inputs.push(move);paddle=Math.max(0,Math.min(320,paddle+move*6));
+      const intercept=ball.vx>0?ball.y+ball.vy*((622-ball.x)/Math.max(1,ball.vx))*.55:180;
+      const target=Math.max(0,Math.min(320,intercept-20));ai+=Math.max(-7,Math.min(7,target-ai));
+      ball.x+=ball.vx;ball.y+=ball.vy;
+      if(ball.y<8||ball.y>352)ball.vy*=-1;
+      if(ball.vx<0&&ball.x<34&&Math.abs(ball.y-(paddle+20))<28){ball.vx=Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(paddle+20))*.08}
+      if(ball.vx>0&&ball.x>606&&Math.abs(ball.y-(ai+20))<28){ball.vx=-Math.abs(ball.vx)*1.04;ball.vy+=(ball.y-(ai+20))*.08}
+      if(ball.x<-8){aiScore++;resetBall(1)}
+      if(ball.x>648){score++;resetBall(-1)}
+      frames++;
+      if(score>=7||aiScore>=7){ended=true;ui.status.textContent=score>=7?'YOU WIN · VERIFYING…':'CPU WINS · VERIFYING…';finishRun()}
+    }
+    function draw(){
+      ctx.fillStyle='#070a0e';ctx.fillRect(0,0,640,360);ctx.setLineDash([8,8]);ctx.strokeStyle='#333a47';ctx.beginPath();ctx.moveTo(320,0);ctx.lineTo(320,360);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#f04b4d';ctx.fillRect(20,paddle,12,40);ctx.fillStyle='#6ad8db';ctx.fillRect(608,ai,12,40);ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f6ead0';ctx.fill();
+      ctx.fillStyle='#ddd';ctx.font='24px monospace';ctx.fillText(score+'     '+aiScore,285,38);ui.score.textContent=score+':'+aiScore;
+    }
+    function tick(now){
+      if(ended||starting)return;
+      if(last)accumulator+=Math.min(100,now-last);last=now;const stepMs=1000/60;let steps=0;
+      while(accumulator>=stepMs&&steps<6&&!ended){step();accumulator-=stepMs;steps++}
+      draw();if(!ended)arcadeFrame=requestAnimationFrame(tick);
+    }
+    arcadeKeys(key=>{if(['ArrowUp','w','W'].includes(key))move=-1;if(['ArrowDown','s','S'].includes(key))move=1});
+    window.addEventListener('keyup',e=>{if(['ArrowUp','ArrowDown','w','W','s','S'].includes(e.key))move=0},{signal:gameKeyController.signal});
+    mount.querySelectorAll('[data-pong]').forEach(button=>{
+      button.addEventListener('pointerdown',event=>{event.preventDefault();move=button.dataset.pong==='up'?-1:1});
+      ['pointerup','pointerleave','pointercancel'].forEach(type=>button.addEventListener(type,()=>move=0));
+    });
+    ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderFlappy(mount) {
     const ui=arcadeCanvasShell(mount,'FLAPPY BIRD // VERIFIED FLIGHT',640,360,'Tap, Space, ↑ or FLAP. Server replay verifies every flap before XP and monthly score are saved.','<button data-flap>FLAP</button>'),ctx=ui.ctx;
