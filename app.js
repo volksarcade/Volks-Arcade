@@ -1528,17 +1528,25 @@
     mount.querySelector('#chess-reset').addEventListener('click',fresh);fresh();
   }
   function renderNoughts(mount) {
-    let cells,done=false;
+    let cells,done=true,verifiedRun=null,playerMoves=[];
     mount.innerHTML=`<div class="game-status"><span>YOU <b>X</b></span><span id="noughts-message">Your move · X starts.</span><span>ARCADE CPU <b>O</b></span></div><div class="game-stage noughts-stage"><div class="noughts-board" id="noughts-board" role="grid" aria-label="Noughts and Crosses board"></div></div><div class="game-control-row"><span class="game-help">Line up three symbols before the CPU does.</span><button class="game-button" id="noughts-reset">NEW ROUND</button></div>`;
     const host=mount.querySelector('#noughts-board');
     function winner(board){for(const line of [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]])if(board[line[0]]&&board[line[0]]===board[line[1]]&&board[line[1]]===board[line[2]])return board[line[0]];return board.every(Boolean)?'draw':null}
     function score(board,maximizing,depth){const result=winner(board);if(result==='O')return 10-depth;if(result==='X')return depth-10;if(result==='draw')return 0;const vals=[];for(let i=0;i<9;i++)if(!board[i]){board[i]=maximizing?'O':'X';vals.push(score(board,!maximizing,depth+1));board[i]=null}return maximizing?Math.max(...vals):Math.min(...vals)}
     function cpuMove(){let best=-Infinity,move=-1;for(let i=0;i<9;i++)if(!cells[i]){cells[i]='O';const value=score(cells,false,0);cells[i]=null;if(value>best){best=value;move=i}}if(move>=0)cells[move]='O';settle()}
-    function settle(){const result=winner(cells);paint();if(result){done=true;mount.querySelector('#noughts-message').textContent=result==='X'?'Victory · three in a row!':result==='O'?'CPU wins · run it back.':'Draw · perfectly matched.';submitMonthlyArcadeScore('noughts',result==='X'?1:0);award(15,'noughts',{won:result==='X'});return}mount.querySelector('#noughts-message').textContent='Your move · X starts.'}
+    async function saveResult(result){
+      if(databaseMode){if(!data.currentUserId||!verifiedRun){showToast('This round was not verified, so it did not award XP.');return}
+        try{const backend=await window.VABackendReady,outcome=await backend.finishVerifiedBoardRun('noughts',verifiedRun.runId,{moves:playerMoves});showToast(outcome.xp_reward?'+15 XP · Verified Noughts & Crosses round':'Verified Noughts & Crosses round saved.');try{await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards()}catch(refreshError){console.warn('Noughts result saved; refresh failed:',refreshError.message)}}
+        catch(error){showToast(error.message||'Round could not be verified. No XP awarded.')}return}
+      submitMonthlyArcadeScore('noughts',result==='X'?1:0);award(15,'noughts',{won:result==='X'});
+    }
+    function settle(){const result=winner(cells);paint();if(result){done=true;mount.querySelector('#noughts-message').textContent=result==='X'?'Victory · three in a row!':result==='O'?'CPU wins · run it back.':'Draw · perfectly matched.';void saveResult(result);return}mount.querySelector('#noughts-message').textContent='Your move · X starts.'}
     function paint(){host.innerHTML=cells.map((value,i)=>`<button class="noughts-cell ${value==='X'?'x-mark':value==='O'?'o-mark':''}" data-cell="${i}" aria-label="Cell ${i+1}${value?`, ${value}`:''}" ${value||done?'disabled':''}>${value||''}</button>`).join('')}
-    function fresh(){cells=Array(9).fill(null);done=false;paint();mount.querySelector('#noughts-message').textContent='Your move · X starts.'}
-    host.addEventListener('click',e=>{const cell=e.target.closest('[data-cell]');if(!cell||done)return;const index=Number(cell.dataset.cell);if(cells[index])return;cells[index]='X';if(winner(cells)){settle();return}mount.querySelector('#noughts-message').textContent='Arcade CPU is thinking…';paint();const timer=setTimeout(()=>{if(!document.getElementById('game-backdrop').classList.contains('open'))return;cpuMove()},250);gameTimeouts.push(timer)});
-    mount.querySelector('#noughts-reset').addEventListener('click',fresh);fresh();
+    async function fresh(){done=true;verifiedRun=null;playerMoves=[];gameTimeouts.forEach(clearTimeout);gameTimeouts=[];
+      if(databaseMode&&data.currentUserId){try{const backend=await window.VABackendReady;verifiedRun=await backend.startVerifiedBoardRun('noughts')}catch(error){showToast(error.message||'Server verification is unavailable. This round will not award XP.')}}
+      cells=Array(9).fill(null);done=false;paint();mount.querySelector('#noughts-message').textContent='Your move · X starts.'}
+    host.addEventListener('click',e=>{const cell=e.target.closest('[data-cell]');if(!cell||done)return;const index=Number(cell.dataset.cell);if(cells[index])return;cells[index]='X';playerMoves.push(index);if(winner(cells)){settle();return}mount.querySelector('#noughts-message').textContent='Arcade CPU is thinking…';paint();const timer=setTimeout(()=>{if(!document.getElementById('game-backdrop').classList.contains('open'))return;cpuMove()},250);gameTimeouts.push(timer)});
+    mount.querySelector('#noughts-reset').addEventListener('click',()=>void fresh());void fresh();
   }
 
   document.querySelectorAll('.filter-chip').forEach(chip=>chip.addEventListener('click',()=>{if(chip.closest('.filter-tabs')){chip.parentElement.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('selected'));chip.classList.add('selected');showToast(`${chip.textContent.trim()} leaderboard filter selected.`)}}));
