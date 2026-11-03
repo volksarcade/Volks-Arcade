@@ -254,6 +254,12 @@
       async finishSnakeRun(runId, moves) {
         return unwrap(await client.functions.invoke('arcade-snake', { body: { action:'finish', runId, moves } }));
       },
+      async startVerifiedBoardRun(gameKey) {
+        return unwrap(await client.functions.invoke('arcade-board-games', { body: { action:'start', gameKey } }));
+      },
+      async finishVerifiedBoardRun(gameKey, runId, result) {
+        return unwrap(await client.functions.invoke('arcade-board-games', { body: { action:'finish', gameKey, runId, ...result } }));
+      },
       async recordArcadeEvent(gameKey, action) {
         return unwrap(await client.rpc('record_arcade_event', { p_game_key: gameKey, p_action: action }));
       },
