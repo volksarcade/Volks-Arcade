@@ -264,7 +264,7 @@
   function supporterTier(username){const total=(data.premiumApplications||[]).filter(item=>item.username.toLowerCase()===String(username||'').toLowerCase()&&item.status==='approved'&&isDonationApplication(item)).reduce((sum,item)=>sum+Math.max(0,Number(item.amount)||0),0);return total>=100?'Gold Supporter':total>=25?'Silver Supporter':total>=5?'Bronze Supporter':'';}
   function profileBadgeList() { const assigned = staffRecord(data.profile.display), extra = assigned ? staffBadgeName(assigned.role) : moderatorBadgeFor(data.profile.display), tier=supporterTier(data.profile.display),shopBadges=rewardCatalog.filter(item=>item.kind==='badge'&&ownsReward(item)&&data.equipped.badge===item.id).map(item=>item.name); return [...new Set([...data.badges,...[extra,tier].filter(Boolean),...shopBadges])]; }
   function showToast(message) {
-    const toast = document.getElementById('toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+    const toast = document.getElementById('toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 6000);
   }
   function route(name) {
     const publicRoutes = ['home','content','store'];
