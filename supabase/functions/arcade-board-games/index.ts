@@ -48,6 +48,36 @@ function checkLadders(seed:number,rollCount:number){
   if(!result)throw new Error('Finish the Snakes & Ladders match before submitting it.');
   return {score:player,progression:rollCount,won:result==='player'};
 }
+
+const tetrisShapes:number[][][]=[
+  [[1,1,1,1]],[[1,1],[1,1]],[[0,1,0],[1,1,1]],[[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],[[0,1,1],[1,1,0]],[[1,1,0],[0,1,1]]
+];
+function checkTetris(seed:number,placements:{shapeId:number;rotation:number;x:number}[]){
+  if(!Array.isArray(placements)||placements.length<1||placements.length>500)throw new Error('Invalid Tetris placement history.');
+  const random=rng(seed),grid=Array.from({length:20},()=>Array(10).fill(0));
+  let lines=0,score=0,level=1,expected=Math.floor(random()*tetrisShapes.length),ended=false;
+  const collides=(shape:number[][],x:number,y:number)=>shape.some((row,dy)=>row.some((cell,dx)=>!!cell&&(x+dx<0||x+dx>=10||y+dy>=20||(y+dy>=0&&grid[y+dy][x+dx]!==0))));
+  const rotate=(shape:number[][])=>shape[0].map((_,i)=>shape.map(row=>row[i]).reverse());
+  for(let index=0;index<placements.length;index++){
+    const placement=placements[index];
+    if(ended)throw new Error('Placements continue after the run ended.');
+    if(!placement||placement.shapeId!==expected||!Number.isInteger(placement.rotation)||placement.rotation<0||placement.rotation>3||!Number.isInteger(placement.x)||placement.x<0||placement.x>9)throw new Error('Invalid Tetris placement.');
+    let shape=tetrisShapes[expected].map(row=>[...row]);
+    for(let r=0;r<placement.rotation;r++)shape=rotate(shape);
+    if(collides(shape,placement.x,0))throw new Error('Invalid Tetris landing.');
+    let y=0;while(!collides(shape,placement.x,y+1))y++;
+    shape.forEach((row,dy)=>row.forEach((cell,dx)=>{if(cell)grid[y+dy][placement.x+dx]=expected+1}));
+    let cleared=0;for(let row=grid.length-1;row>=0;row--){if(grid[row].every(Boolean)){grid.splice(row,1);grid.unshift(Array(10).fill(0));cleared++;row++}}
+    if(cleared){lines+=cleared;score+=[0,100,300,500,800][cleared]*level;level=1+Math.floor(lines/10)}
+    expected=Math.floor(random()*tetrisShapes.length);
+    ended=collides(tetrisShapes[expected],3,0);
+    if(ended&&index!==placements.length-1)throw new Error('Placements continue after the run ended.');
+  }
+  if(!ended)throw new Error('Finish the Tetris run before submitting it.');
+  return {score,progression:level,won:false};
+}
+
 Deno.serve(async(request)=>{
   const origin=request.headers.get('origin');
   if(origin&&!allowedOrigins.has(origin))return respond({error:'Origin not allowed.'},403,null);
@@ -59,7 +89,7 @@ Deno.serve(async(request)=>{
   if(authError||!authData.user)return respond({error:'Your session could not be verified. Sign in again.'},401,origin);
   try{
     const body=await request.json(),gameKey=body.gameKey;
-    if(!['noughts','ladders'].includes(gameKey))return respond({error:'This game is not enabled for verified results yet.'},400,origin);
+    if(!['noughts','ladders','tetris'].includes(gameKey))return respond({error:'This game is not enabled for verified results yet.'},400,origin);
     if(body.action==='start'){
       const {count,error:countError}=await admin.from('verified_arcade_runs').select('id',{count:'exact',head:true})
         .eq('user_id',authData.user.id).gt('started_at',new Date(Date.now()-60_000).toISOString());
@@ -75,7 +105,7 @@ Deno.serve(async(request)=>{
     if(runError)throw runError;
     if(!run||run.user_id!==authData.user.id||run.game_key!==gameKey)return respond({error:'Arcade run not found.'},404,origin);
     if(run.finished_at)return respond({score:run.score,xp_reward:0,already_counted:true},200,origin);
-    const result=gameKey==='noughts'?checkNoughts(body.moves):checkLadders(Number(run.seed),Number(body.rollCount));
+    const result=gameKey==='noughts'?checkNoughts(body.moves):gameKey==='ladders'?checkLadders(Number(run.seed),Number(body.rollCount)):checkTetris(Number(run.seed),body.placements);
     const {data,error}=await admin.rpc('record_verified_board_run',{p_run_id:run.id,p_game_key:gameKey,p_score:result.score,p_progression_count:result.progression,p_won:result.won});
     if(error)throw error;
     return respond(data,200,origin);
