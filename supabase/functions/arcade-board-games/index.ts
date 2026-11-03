@@ -114,7 +114,7 @@ function checkCheckers(history:CheckersMove[]){
     if(!count||!movesFor(side).length){winner=side==='r'?'b':'r';if(index!==history.length-1)throw new Error('Moves continue after the match ended.');break;}
     const follow=captured?movesFor(side,{x:move.tx,y:move.ty}).filter(m=>Math.abs(m.tx-m.fx)===2):[];
     if(follow.length){forced={x:move.tx,y:move.ty};continue;}
-    forced=null;side=side==='b'?'r':'b';
+    forced=null;const opponent: 'r'|'b'=side==='r'?'b':'r';if(!board.flat().some(p=>p&&color(p)===opponent)||!movesFor(opponent).length){winner=side;if(index!==history.length-1)throw new Error('Moves continue after the match ended.');break;}side=opponent;
   }
   if(!winner)throw new Error('Finish the Checkers match before submitting it.');
   return {score:redCaptures,progression:history.length,won:winner==='r'};
