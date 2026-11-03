@@ -72,7 +72,7 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return respond({}, 204, origin);
   if (request.method !== 'POST') return respond({ error: 'POST required.' }, 405, origin);
 
-  const token = request.headers.get('authorization')?.replace(/^Bearer\\s+/i, '');
+  const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!token) return respond({ error: 'Sign in to save a Snake result.' }, 401, origin);
   const { data: authData, error: authError } = await userClient.auth.getUser(token);
   if (authError || !authData.user) return respond({ error: 'Your session could not be verified. Sign in again.' }, 401, origin);
