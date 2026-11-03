@@ -1305,9 +1305,9 @@
           const backend=await window.VABackendReady,result=await backend.finishSnakeRun(runRecord.runId,runMoves);
           score=Number(result.score)||0;mount.querySelector('#snake-score').textContent=String(score);
           if(score>data.snakeBest){data.snakeBest=score;persist();updateGameBestLabels()}
-          await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards();
           showToast(result.xp_reward?'+15 XP · Verified Snake run':result.already_counted?'Snake run already recorded.':'Verified Snake score saved.');
-        }catch(error){showToast(error.message||'Snake run could not be verified. No XP was awarded.');}
+          try{await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards()}catch(refreshError){console.warn('Snake reward saved; wallet refresh failed:',refreshError.message);}
+        }catch(error){showToast(error.message||'Snake result could not be confirmed. Check your XP before restarting the run.');}
         return;
       }
       if(score>data.snakeBest){data.snakeBest=score;persist();updateGameBestLabels()}
