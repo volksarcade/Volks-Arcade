@@ -1248,12 +1248,12 @@
     const selected=document.querySelector('#game-mount [data-monthly-board]');if(selected){const game=selected.dataset.monthlyBoard;selected.querySelector('summary span').textContent=month.toUpperCase();}
     document.querySelectorAll('[data-board-rows]').forEach(host=>{
       const game=host.dataset.boardRows,rows=monthlyArcadeRows.filter(row=>row.game_key===game);
-      if(databaseMode){host.innerHTML='<div class="empty-state">Verified monthly scores and rankings are coming soon. Your game bests remain personal.</div>';return;}
+      if(databaseMode&&(!data.currentUserId||game!=='snake')){host.innerHTML='<div class="empty-state">'+(!data.currentUserId?'Sign in to view monthly scores.':'Verified monthly scoreboards for this game are coming soon.')+'</div>';return;}
       if(!data.currentUserId){host.innerHTML='<div class="empty-state">Sign in to view this month’s leaderboard.</div>';return;}
-      host.innerHTML=rows.length?'<ol class="monthly-board-list">'+rows.map(row=>'<li><span class="monthly-board-place">#'+Number(row.place)+'</span>'+(row.avatar_url?'<img src="'+esc(row.avatar_url)+'" alt="">':'<span class="monthly-board-avatar">'+esc((row.username||'P')[0].toUpperCase())+'</span>')+'<button type="button" data-view-profile="'+esc(row.user_id)+'">'+esc(row.username)+'</button><small>LVL '+Number(row.player_level||1)+'</small><b>'+num(row.score)+'</b></li>').join('')+'</ol>':'<div class="empty-state">Monthly ranked scores are coming soon while fair-play result checks are prepared.</div>';
+      host.innerHTML=rows.length?'<ol class="monthly-board-list">'+rows.map(row=>'<li><span class="monthly-board-place">#'+Number(row.place)+'</span>'+(row.avatar_url?'<img src="'+esc(row.avatar_url)+'" alt="">':'<span class="monthly-board-avatar">'+esc((row.username||'P')[0].toUpperCase())+'</span>')+'<button type="button" data-view-profile="'+esc(row.user_id)+'">'+esc(row.username)+'</button><small>LVL '+Number(row.player_level||1)+'</small><b>'+num(row.score)+'</b></li>').join('')+'</ol>':'<div class="empty-state">No verified Snake scores yet this month. Finish a run to set the first score.</div>';
     });
   }
-  async function refreshMonthlyArcadeBoards(){monthlyArcadeRows=[];renderMonthlyArcadeBoards();}
+  async function refreshMonthlyArcadeBoards(){monthlyArcadeRows=[];if(databaseMode&&data.currentUserId){try{const backend=await window.VABackendReady;monthlyArcadeRows=await backend.monthlyArcadeLeaderboard()||[]}catch(error){console.warn('Monthly arcade scores could not load:',error.message)}}renderMonthlyArcadeBoards();}
   async function submitMonthlyArcadeScore(){return;}
   function factionRankKey(factionId,rank){if(factionId==='house-volkah'&&String(rank).toLowerCase().includes('council'))return 'council';return slug(String(rank).split(' — ')[0]);}
   function manageableFactionIds(){
@@ -1281,13 +1281,50 @@
   function renderSnake(mount) {
     mount.innerHTML=`<div class="game-status"><span>RUN SCORE <b id="snake-score">0</b></span><span>PERSONAL BEST <b>${num(data.snakeBest)}</b></span><span id="snake-state">READY</span></div><div class="game-stage"><canvas class="snake-canvas" id="snake-canvas" width="420" height="300" aria-label="Snake game"></canvas></div><div class="game-control-row"><span class="game-help">Use arrow keys or WASD. On touch screens, use the direction pad.</span><div class="mobile-controls"><span></span><button data-dir="up">↑</button><span></span><button data-dir="left">←</button><button data-dir="down">↓</button><button data-dir="right">→</button></div><button class="game-button" id="snake-start">START RUN</button></div>`;
     const canvas=mount.querySelector('#snake-canvas'),ctx=canvas.getContext('2d'),cell=20,cols=21,rows=15;
-    let snake,dir,next,food,score,live=false,ended=false;
-    function fresh(){snake=[{x:5,y:7},{x:4,y:7},{x:3,y:7}];dir={x:1,y:0};next={...dir};score=0;food={x:15,y:7};live=true;ended=false;mount.querySelector('#snake-score').textContent='0';mount.querySelector('#snake-state').textContent='RUNNING';tickDraw();clearInterval(snakeTimer);snakeTimer=setInterval(step,115)}
+    let snake,dir,next,food,score,live=false,ended=false,starting=false,runRecord=null,runMoves=[],seedState=1;
+    const keyForDirection=value=>value.x===1?'R':value.x===-1?'L':value.y===1?'D':'U';
+    function random(){seedState^=seedState<<13;seedState^=seedState>>>17;seedState^=seedState<<5;return (seedState>>>0)/4294967296}
+    function nextLocalSeed(){const values=new Uint32Array(1);if(window.crypto?.getRandomValues)window.crypto.getRandomValues(values);else values[0]=Math.floor(Math.random()*4294967295);return values[0]||0x6d2b79f5}
+    function spawnFood(){const free=[];for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)if(!snake.some(part=>part.x===x&&part.y===y))free.push({x,y});return free.length?free[Math.floor(random()*free.length)]:null}
+    async function fresh(){
+      if(starting)return;
+      starting=true;clearInterval(snakeTimer);live=false;runRecord=null;runMoves=[];
+      try{
+        if(databaseMode&&data.currentUserId){const backend=await window.VABackendReady;runRecord=await backend.startSnakeRun();seedState=Number(runRecord.seed)>>>0||0x6d2b79f5;}
+        else seedState=nextLocalSeed();
+      }catch(error){starting=false;mount.querySelector('#snake-state').textContent='SERVER UNAVAILABLE';showToast(error.message||'Could not start a verified Snake run.');return;}
+      snake=[{x:5,y:7},{x:4,y:7},{x:3,y:7}];dir={x:1,y:0};next={...dir};score=0;food={x:15,y:7};live=true;ended=false;starting=false;mount.querySelector('#snake-score').textContent='0';mount.querySelector('#snake-state').textContent='RUNNING';tickDraw();clearInterval(snakeTimer);snakeTimer=setInterval(step,115);
+    }
     function tickDraw(){ctx.fillStyle='#101218';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='rgba(255,255,255,.035)';for(let x=0;x<=cols;x++){ctx.beginPath();ctx.moveTo(x*cell,0);ctx.lineTo(x*cell,canvas.height);ctx.stroke()}for(let y=0;y<=rows;y++){ctx.beginPath();ctx.moveTo(0,y*cell);ctx.lineTo(canvas.width,y*cell);ctx.stroke()}if(food){ctx.fillStyle='#f2cc74';ctx.shadowColor='#f2cc74';ctx.shadowBlur=10;ctx.fillRect(food.x*cell+6,food.y*cell+6,8,8);ctx.shadowBlur=0}snake?.forEach((p,i)=>{ctx.fillStyle=i?'#ba3d47':'#f15c60';ctx.fillRect(p.x*cell+2,p.y*cell+2,cell-4,cell-4)});}
-    function finish(){clearInterval(snakeTimer);live=false;ended=true;mount.querySelector('#snake-state').textContent='RUN COMPLETE';if(score>data.snakeBest){data.snakeBest=score;persist();updateGameBestLabels()}submitMonthlyArcadeScore('snake',score);award(15,'snake');mount.querySelector('#snake-start').textContent='RUN AGAIN';tickDraw()}
-    function step(){dir=next;let head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};if(head.x<0||head.y<0||head.x>=cols||head.y>=rows||snake.some((p,i)=>i>0&&p.x===head.x&&p.y===head.y)){finish();return}snake.unshift(head);if(head.x===food.x&&head.y===food.y){score+=10;mount.querySelector('#snake-score').textContent=score;food={x:Math.floor(Math.random()*cols),y:Math.floor(Math.random()*rows)};if(snake.some(p=>p.x===food.x&&p.y===food.y))food.x=(food.x+4)%cols}else snake.pop();tickDraw()}
+    async function finish(){
+      clearInterval(snakeTimer);live=false;ended=true;mount.querySelector('#snake-state').textContent='RUN COMPLETE';mount.querySelector('#snake-start').textContent='RUN AGAIN';tickDraw();
+      if(databaseMode){
+        if(!data.currentUserId){showToast('Sign in to save Snake scores or earn XP.');return;}
+        if(!runRecord){showToast('This run could not be verified, so no XP was awarded.');return;}
+        try{
+          const backend=await window.VABackendReady,result=await backend.finishSnakeRun(runRecord.runId,runMoves);
+          score=Number(result.score)||0;mount.querySelector('#snake-score').textContent=String(score);
+          if(score>data.snakeBest){data.snakeBest=score;persist();updateGameBestLabels()}
+          await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards();
+          showToast(result.xp_reward?'+15 XP · Verified Snake run':result.already_counted?'Snake run already recorded.':'Verified Snake score saved.');
+        }catch(error){showToast(error.message||'Snake run could not be verified. No XP was awarded.');}
+        return;
+      }
+      if(score>data.snakeBest){data.snakeBest=score;persist();updateGameBestLabels()}
+      submitMonthlyArcadeScore('snake',score);award(15,'snake');
+    }
+    function step(){
+      if(!live)return;
+      dir=next;runMoves.push(keyForDirection(dir));
+      const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+      if(head.x<0||head.y<0||head.x>=cols||head.y>=rows||snake.some((p,i)=>i>0&&p.x===head.x&&p.y===head.y)){void finish();return}
+      snake.unshift(head);
+      if(head.x===food.x&&head.y===food.y){score+=10;mount.querySelector('#snake-score').textContent=String(score);food=spawnFood();if(!food){void finish();return}}
+      else snake.pop();
+      tickDraw();
+    }
     function setdir(key){const map={ArrowUp:[0,-1],w:[0,-1],ArrowDown:[0,1],s:[0,1],ArrowLeft:[-1,0],a:[-1,0],ArrowRight:[1,0],d:[1,0]};if(!map[key])return;const [x,y]=map[key];if(x!==-dir.x||y!==-dir.y)next={x,y};}
-    mount.querySelector('#snake-start').addEventListener('click',fresh);
+    mount.querySelector('#snake-start').addEventListener('click',()=>void fresh());
     mount.querySelectorAll('[data-dir]').forEach(b=>b.addEventListener('click',()=>setdir({up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight'}[b.dataset.dir])));
     const keyHandler=e=>{if(!live)return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].includes(e.key)){e.preventDefault();setdir(e.key)}};
     gameKeyController=new AbortController();window.addEventListener('keydown',keyHandler,{signal:gameKeyController.signal});
