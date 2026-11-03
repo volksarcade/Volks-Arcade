@@ -120,6 +120,81 @@ function checkCheckers(history:CheckersMove[]){
   return {score:redCaptures,progression:history.length,won:winner==='r'};
 }
 
+type ChessMove={side:'w'|'b';fromX:number;fromY:number;toX:number;toY:number};
+function checkChess(history:ChessMove[]){
+  if(!Array.isArray(history)||history.length<4||history.length>500)throw new Error('Invalid Chess move history.');
+  const board=(['rnbqkbnr','pppppppp','........','........','........','........','PPPPPPPP','RNBQKBNR'].map(row=>row.split('').map(p=>p==='.'?null:p)) as (string|null)[][]);
+  let side:'w'|'b'='w',ep:{x:number;y:number}|null=null,castle={wK:true,wQ:true,bK:true,bQ:true},winner:'w'|'b'|'draw'|null=null;
+  const color=(piece:string|null)=>piece?(piece===piece.toUpperCase()?'w':'b'):null,inside=(x:number,y:number)=>x>=0&&x<8&&y>=0&&y<8;
+  const attacked=(x:number,y:number,by:'w'|'b')=>{
+    for(let yy=0;yy<8;yy++)for(let xx=0;xx<8;xx++){
+      const p=board[yy][xx];if(!p||color(p)!==by)continue;
+      const dx=x-xx,dy=y-yy,t=p.toLowerCase();
+      if(t==='p'&&Math.abs(dx)===1&&dy===(by==='w'?-1:1))return true;
+      if(t==='n'&&Math.abs(dx)*Math.abs(dy)===2)return true;
+      if(t==='k'&&Math.max(Math.abs(dx),Math.abs(dy))===1)return true;
+      if(['b','r','q'].includes(t)){
+        const diagonal=Math.abs(dx)===Math.abs(dy),straight=dx===0||dy===0;
+        if((t==='b'&&!diagonal)||(t==='r'&&!straight)||(t==='q'&&!diagonal&&!straight))continue;
+        const sx=Math.sign(dx),sy=Math.sign(dy);let cx=xx+sx,cy=yy+sy,blocked=false;
+        while(cx!==x||cy!==y){if(board[cy][cx]){blocked=true;break}cx+=sx;cy+=sy}
+        if(!blocked)return true;
+      }
+    }return false;
+  };
+  const inCheck=(which:'w'|'b')=>{const king=which==='w'?'K':'k';for(let y=0;y<8;y++)for(let x=0;x<8;x++)if(board[y][x]===king)return attacked(x,y,which==='w'?'b':'w');return true};
+  const pseudo=(x:number,y:number)=>{
+    const p=board[y][x],which=color(p) as 'w'|'b',t=p!.toLowerCase(),out:{x:number;y:number;double?:boolean;ep?:boolean;castle?:'K'|'Q'}[]=[];
+    const add=(tx:number,ty:number,extra={})=>{if(inside(tx,ty)&&color(board[ty][tx])!==which)out.push({x:tx,y:ty,...extra})};
+    if(t==='p'){
+      const d=which==='w'?-1:1,start=which==='w'?6:1;
+      if(inside(x,y+d)&&!board[y+d][x]){add(x,y+d);if(y===start&&!board[y+2*d][x])add(x,y+2*d,{double:true})}
+      for(const dx of [-1,1]){if(inside(x+dx,y+d)&&color(board[y+d][x+dx])&&color(board[y+d][x+dx])!==which)add(x+dx,y+d);if(ep&&ep.x===x+dx&&ep.y===y+d)out.push({x:x+dx,y:y+d,ep:true})}
+    }else if(t==='n'){[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]].forEach(([dx,dy])=>add(x+dx,y+dy))}
+    else if(t==='k'){
+      for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(dx||dy)add(x+dx,y+dy);
+      const row=which==='w'?7:0,opp=which==='w'?'b':'w';
+      if(y===row&&x===4&&!inCheck(which)){
+        for(const wing of ['K','Q'] as const)if(castle[which+wing]){
+          const spaces=wing==='K'?[5,6]:[1,2,3],through=wing==='K'?[5,6]:[3,2];
+          if(spaces.every(cx=>!board[row][cx])&&through.every(cx=>!attacked(cx,row,opp)))out.push({x:wing==='K'?6:2,y:row,castle:wing});
+        }
+      }
+    }else{
+      const dirs:number[][]=[];if(t==='b'||t==='q')dirs.push([1,1],[1,-1],[-1,1],[-1,-1]);if(t==='r'||t==='q')dirs.push([1,0],[-1,0],[0,1],[0,-1]);
+      for(const [dx,dy] of dirs){let tx=x+dx,ty=y+dy;while(inside(tx,ty)){if(color(board[ty][tx])===which)break;out.push({x:tx,y:ty});if(board[ty][tx])break;tx+=dx;ty+=dy}}
+    }return out;
+  };
+  const apply=(fx:number,fy:number,m:{x:number;y:number;double?:boolean;ep?:boolean;castle?:'K'|'Q'})=>{
+    const moving=board[fy][fx];board[fy][fx]=null;
+    if(m.ep)board[fy+(color(moving)==='w'?1:-1)][m.x]=null;
+    if(m.castle){const row=fy;if(m.castle==='K'){board[row][5]=board[row][7];board[row][7]=null}else{board[row][3]=board[row][0];board[row][0]=null}}
+    board[m.y][m.x]=(moving!.toLowerCase()==='p'&&(m.y===0||m.y===7))?(color(moving)==='w'?'Q':'q'):moving;
+    ep=m.double?{x:fx,y:fy+(color(moving)==='w'?-1:1)}:null;
+    if(moving==='K'){castle.wK=castle.wQ=false}if(moving==='k'){castle.bK=castle.bQ=false}
+    if(moving==='R'&&fx===0&&fy===7)castle.wQ=false;if(moving==='R'&&fx===7&&fy===7)castle.wK=false;if(moving==='r'&&fx===0&&fy===0)castle.bQ=false;if(moving==='r'&&fx===7&&fy===0)castle.bK=false;
+    if(m.x===0&&m.y===7)castle.wQ=false;if(m.x===7&&m.y===7)castle.wK=false;if(m.x===0&&m.y===0)castle.bQ=false;if(m.x===7&&m.y===0)castle.bK=false;
+  };
+  const legal=(x:number,y:number)=>{
+    const piece=board[y][x],which=color(piece) as 'w'|'b';return pseudo(x,y).filter(move=>{
+      const snap=board.map(row=>row.slice()),ep0=ep,castle0={...castle};apply(x,y,move);const safe=!inCheck(which);
+      for(let i=0;i<8;i++)board[i]=snap[i];ep=ep0;castle=castle0;return safe;
+    });
+  };
+  const allMoves=(which:'w'|'b')=>{const out:{x:number;y:number;m:{x:number;y:number;double?:boolean;ep?:boolean;castle?:'K'|'Q'}}[]=[];for(let y=0;y<8;y++)for(let x=0;x<8;x++)if(color(board[y][x])===which)for(const m of legal(x,y))out.push({x,y,m});return out};
+  for(let index=0;index<history.length;index++){
+    const move=history[index];
+    if(winner||!move||move.side!==side||![move.fromX,move.fromY,move.toX,move.toY].every(Number.isInteger)||[move.fromX,move.fromY,move.toX,move.toY].some(n=>n<0||n>7)||color(board[move.fromY]?.[move.fromX])!==side)throw new Error('Invalid Chess turn.');
+    const selected=legal(move.fromX,move.fromY).find(m=>m.x===move.toX&&m.y===move.toY);
+    if(!selected)throw new Error('Illegal Chess move.');
+    apply(move.fromX,move.fromY,selected);side=side==='w'?'b':'w';
+    const options=allMoves(side);
+    if(!options.length){winner=inCheck(side)?(side==='w'?'b':'w'):'draw';if(index!==history.length-1)throw new Error('Moves continue after the Chess game ended.');break;}
+  }
+  if(!winner)throw new Error('Finish the Chess game before submitting it.');
+  return {score:winner==='w'?1:0,progression:history.length,won:winner==='w'};
+}
+
 Deno.serve(async(request)=>{
   const origin=request.headers.get('origin');
   if(origin&&!allowedOrigins.has(origin))return respond({error:'Origin not allowed.'},403,null);
@@ -131,7 +206,7 @@ Deno.serve(async(request)=>{
   if(authError||!authData.user)return respond({error:'Your session could not be verified. Sign in again.'},401,origin);
   try{
     const body=await request.json(),gameKey=body.gameKey;
-    if(!['noughts','ladders','tetris','checkers'].includes(gameKey))return respond({error:'This game is not enabled for verified results yet.'},400,origin);
+    if(!['noughts','ladders','tetris','checkers','chess'].includes(gameKey))return respond({error:'This game is not enabled for verified results yet.'},400,origin);
     if(body.action==='start'){
       const {count,error:countError}=await admin.from('verified_arcade_runs').select('id',{count:'exact',head:true})
         .eq('user_id',authData.user.id).gt('started_at',new Date(Date.now()-60_000).toISOString());
@@ -147,7 +222,7 @@ Deno.serve(async(request)=>{
     if(runError)throw runError;
     if(!run||run.user_id!==authData.user.id||run.game_key!==gameKey)return respond({error:'Arcade run not found.'},404,origin);
     if(run.finished_at)return respond({score:run.score,xp_reward:0,already_counted:true},200,origin);
-    const result=gameKey==='noughts'?checkNoughts(body.moves):gameKey==='ladders'?checkLadders(Number(run.seed),Number(body.rollCount)):gameKey==='tetris'?checkTetris(Number(run.seed),body.placements):checkCheckers(body.moves);
+    const result=gameKey==='noughts'?checkNoughts(body.moves):gameKey==='ladders'?checkLadders(Number(run.seed),Number(body.rollCount)):gameKey==='tetris'?checkTetris(Number(run.seed),body.placements):gameKey==='checkers'?checkCheckers(body.moves):checkChess(body.moves);
     const {data,error}=await admin.rpc('record_verified_board_run',{p_run_id:run.id,p_game_key:gameKey,p_score:result.score,p_progression_count:result.progression,p_won:result.won});
     if(error)throw error;
     return respond(data,200,origin);
