@@ -78,6 +78,48 @@ function checkTetris(seed:number,placements:{shapeId:number;rotation:number;x:nu
   return {score,progression:level,won:false};
 }
 
+type CheckersMove={side:'r'|'b';fx:number;fy:number;tx:number;ty:number};
+function checkCheckers(history:CheckersMove[]){
+  if(!Array.isArray(history)||history.length<5||history.length>500)throw new Error('Invalid Checkers move history.');
+  const board=(Array.from({length:8},()=>Array(8).fill(null)) as (string|null)[][]);
+  for(let y=0;y<3;y++)for(let x=0;x<8;x++)if((x+y)%2===1)board[y][x]='b';
+  for(let y=5;y<8;y++)for(let x=0;x<8;x++)if((x+y)%2===1)board[y][x]='r';
+  const color=(piece:string|null)=>piece?.toLowerCase()||null;
+  const movesFor=(side:'r'|'b',from?:{x:number;y:number})=>{
+    const captures:CheckersMove[]=[],steps:CheckersMove[]=[];
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+      const piece=board[y][x];if(!piece||color(piece)!==side)continue;
+      const dirs=piece===piece.toUpperCase()?[-1,1]:[side==='r'?-1:1];
+      for(const dy of dirs)for(const dx of [-1,1]){
+        const nx=x+dx,ny=y+dy,jx=x+dx*2,jy=y+dy*2;
+        if(nx>=0&&nx<8&&ny>=0&&ny<8&&board[ny][nx]&&color(board[ny][nx])!==side&&jx>=0&&jx<8&&jy>=0&&jy<8&&!board[jy][jx])captures.push({side,fx:x,fy:y,tx:jx,ty:jy});
+        if(nx>=0&&nx<8&&ny>=0&&ny<8&&!board[ny][nx])steps.push({side,fx:x,fy:y,tx:nx,ty:ny});
+      }
+    }
+    const eligible=(list:CheckersMove[])=>from?list.filter(m=>m.fx===from.x&&m.fy===from.y):list;
+    return captures.length?eligible(captures):eligible(steps);
+  };
+  let side:'r'|'b'='r',forced:{x:number;y:number}|null=null,winner:'r'|'b'|null=null,redCaptures=0;
+  for(let index=0;index<history.length;index++){
+    const move=history[index];
+    if(winner||!move||move.side!==side||![move.fx,move.fy,move.tx,move.ty].every(Number.isInteger)||[move.fx,move.fy,move.tx,move.ty].some(n=>n<0||n>7))throw new Error('Invalid Checkers turn.');
+    const legal=movesFor(side,forced||undefined),selected=legal.find(m=>m.fx===move.fx&&m.fy===move.fy&&m.tx===move.tx&&m.ty===move.ty);
+    if(!selected)throw new Error('Illegal Checkers move.');
+    const piece=board[move.fy][move.fx]!,mx=(move.fx+move.tx)/2,my=(move.fy+move.ty)/2,captured=Math.abs(move.tx-move.fx)===2;
+    board[move.fy][move.fx]=null;
+    if(captured){if(!board[my][mx]||color(board[my][mx])===side)throw new Error('Invalid Checkers capture.');board[my][mx]=null;if(side==='r')redCaptures++;}
+    board[move.ty][move.tx]=piece;
+    if((side==='r'&&move.ty===0)||(side==='b'&&move.ty===7))board[move.ty][move.tx]=side.toUpperCase();
+    const count=board.flat().filter(p=>p&&color(p)===side).length;
+    if(!count||!movesFor(side).length){winner=side==='r'?'b':'r';if(index!==history.length-1)throw new Error('Moves continue after the match ended.');break;}
+    const follow=captured?movesFor(side,{x:move.tx,y:move.ty}).filter(m=>Math.abs(m.tx-m.fx)===2):[];
+    if(follow.length){forced={x:move.tx,y:move.ty};continue;}
+    forced=null;side=side==='b'?'r':'b';
+  }
+  if(!winner)throw new Error('Finish the Checkers match before submitting it.');
+  return {score:redCaptures,progression:history.length,won:winner==='r'};
+}
+
 Deno.serve(async(request)=>{
   const origin=request.headers.get('origin');
   if(origin&&!allowedOrigins.has(origin))return respond({error:'Origin not allowed.'},403,null);
@@ -89,7 +131,7 @@ Deno.serve(async(request)=>{
   if(authError||!authData.user)return respond({error:'Your session could not be verified. Sign in again.'},401,origin);
   try{
     const body=await request.json(),gameKey=body.gameKey;
-    if(!['noughts','ladders','tetris'].includes(gameKey))return respond({error:'This game is not enabled for verified results yet.'},400,origin);
+    if(!['noughts','ladders','tetris','checkers'].includes(gameKey))return respond({error:'This game is not enabled for verified results yet.'},400,origin);
     if(body.action==='start'){
       const {count,error:countError}=await admin.from('verified_arcade_runs').select('id',{count:'exact',head:true})
         .eq('user_id',authData.user.id).gt('started_at',new Date(Date.now()-60_000).toISOString());
@@ -105,7 +147,7 @@ Deno.serve(async(request)=>{
     if(runError)throw runError;
     if(!run||run.user_id!==authData.user.id||run.game_key!==gameKey)return respond({error:'Arcade run not found.'},404,origin);
     if(run.finished_at)return respond({score:run.score,xp_reward:0,already_counted:true},200,origin);
-    const result=gameKey==='noughts'?checkNoughts(body.moves):gameKey==='ladders'?checkLadders(Number(run.seed),Number(body.rollCount)):checkTetris(Number(run.seed),body.placements);
+    const result=gameKey==='noughts'?checkNoughts(body.moves):gameKey==='ladders'?checkLadders(Number(run.seed),Number(body.rollCount)):gameKey==='tetris'?checkTetris(Number(run.seed),body.placements):checkCheckers(body.moves);
     const {data,error}=await admin.rpc('record_verified_board_run',{p_run_id:run.id,p_game_key:gameKey,p_score:result.score,p_progression_count:result.progression,p_won:result.won});
     if(error)throw error;
     return respond(data,200,origin);
