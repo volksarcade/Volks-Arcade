@@ -520,7 +520,7 @@
     if (databaseMode) {
       if(!data.currentUserId)return false;
       const gameNames={snake:'Snake',ladders:'Snakes & Ladders',reaction:'Reaction Test',tetris:'Tetris',checkers:'Checkers',noughts:'Noughts & Crosses',chess:'Chess',pacman:'Pac-Man','space-invaders':'Space Invaders',dino:'Dino Run',pong:'Pong','flappy-bird':'Flappy Bird',breakout:'Breakout'};
-      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess','dino','flappy-bird','pong'];
+      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess','dino','flappy-bird','pong','breakout'];
       const gameName=gameNames[game]||'This game';
       showToast(verifiedGames.includes(game)?`${gameName} did not award XP because this run was not verified.`:`${gameName} XP rewards are coming soon. This run did not award XP.`);
       return false;
@@ -1597,53 +1597,60 @@
     ui.canvas.addEventListener('pointerdown',flap);mount.querySelector('[data-flap]').addEventListener('click',flap);ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderBreakout(mount) {
-    const ui=arcadeCanvasShell(mount,'BREAKOUT // DESCENDING BRICK WALL',640,360,'Break the top wall with the ball. Each second the brick field moves down and a full new row forms at the top.','<button data-breakout="left">←</button><button data-breakout="right">→</button>'),ctx=ui.ctx;
-    let paddle,ball,bricks,score,ended,last,move=0,dropAt,elapsed,rowCount;
+    const ui=arcadeCanvasShell(mount,'BREAKOUT // VERIFIED DESCENDING WALL',640,360,'Move with ←/→ or A/D, or use the separated direction buttons. Clear bricks and survive each descending wave; signed-in runs are replayed by the server.','<button data-breakout="left" aria-label="Move paddle left">←</button><button data-breakout="right" aria-label="Move paddle right">→</button>'),ctx=ui.ctx;
+    let paddle,ball,bricks,score,ended,move,frames,inputs,verifiedRun,accumulator,last,rowCount,nextDropFrame,starting,submitting;
     const colors=['#f04b4d','#f0a34b','#e9d65d','#65d589','#65cde1'];
-    function addBrickRow(y,color=colors[rowCount%colors.length]){
-      for(let c=0;c<11;c++)bricks.push({x:28+c*53,y,alive:true,color});
-      rowCount++;
-    }
+    function addBrickRow(y,color=colors[rowCount%colors.length]){for(let c=0;c<11;c++)bricks.push({x:28+c*53,y,alive:true,color});rowCount++}
     function fresh(){
-      paddle=280;ball={x:320,y:320,vx:3.5,vy:-4};bricks=[];rowCount=0;
-      for(let r=0;r<5;r++)for(let c=0;c<11;c++)bricks.push({x:28+c*53,y:35+r*24,alive:true,color:colors[r]});
-      rowCount=5;score=0;ended=false;last=0;move=0;elapsed=0;dropAt=1000;
-      ui.status.textContent='RUNNING · THE WALL DESCENDS';arcadeFrame=requestAnimationFrame(tick);
+      cancelAnimationFrame(arcadeFrame);paddle=280;ball={x:320,y:320,vx:3.5,vy:-4};bricks=[];rowCount=0;
+      for(let r=0;r<5;r++)addBrickRow(35+r*24,colors[r]);
+      score=0;ended=false;move=0;frames=0;inputs=[];verifiedRun=null;accumulator=0;last=0;nextDropFrame=60;starting=true;submitting=false;
+      ui.score.textContent='0';ui.status.textContent=databaseMode&&data.currentUserId?'CONNECTING TO VERIFIED RUN…':'LOCAL RUN · XP NEEDS SIGN-IN';
+      const prepare=async()=>{if(databaseMode&&data.currentUserId){try{const backend=await window.VABackendReady;verifiedRun=await backend.startVerifiedBoardRun('breakout')}catch(error){showToast(error.message||'Could not start a verified Breakout run. You can still play; this run will not award XP.')}}
+        ui.status.textContent=verifiedRun?'VERIFIED RUN · THE WALL DESCENDS':'LOCAL RUN · XP UNAVAILABLE';starting=false;arcadeFrame=requestAnimationFrame(tick)};
+      void prepare();
     }
-    function tick(now){
-      if(ended)return;
-      const dt=Math.min(32,now-(last||now))/16;last=now;elapsed+=dt*16;
-      paddle=Math.max(0,Math.min(560,paddle+move*7*dt));ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
+    function finishRun(won){
+      if(submitting)return;submitting=true;ui.status.textContent='RUN OVER · VERIFYING WAVES…';
+      if(!databaseMode||!data.currentUserId||!verifiedRun){ui.status.textContent='RUN OVER · NO VERIFIED XP';showToast('This Breakout run was not server-verified, so no XP was awarded.');return}
+      void (async()=>{try{const backend=await window.VABackendReady,result=await backend.finishVerifiedBoardRun('breakout',verifiedRun.runId,{frames,inputs});
+        ui.status.textContent=result.xp_reward?'VERIFIED · +'+result.xp_reward+' XP':'VERIFIED · NO REWARD';
+        showToast(result.xp_reward?'+'+result.xp_reward+' XP · Verified Breakout waves':'Breakout run verified; play longer to earn wave XP.');
+        await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards()}catch(error){ui.status.textContent='RUN OVER · RESULT NOT VERIFIED';showToast(error.message||'Breakout result could not be verified. No XP was awarded.')}})();
+    }
+    function step(){
+      inputs.push(move);paddle=Math.max(0,Math.min(560,paddle+move*7));ball.x+=ball.vx;ball.y+=ball.vy;
       if(ball.x<7||ball.x>633)ball.vx*=-1;
       if(ball.y<7)ball.vy=Math.abs(ball.vy);
       if(ball.y>330&&ball.y<350&&ball.x>paddle&&ball.x<paddle+80){ball.vy=-Math.abs(ball.vy);ball.vx=((ball.x-(paddle+40))/40)*5}
-      for(const b of bricks){
-        if(b.alive&&ball.x+7>b.x&&ball.x-7<b.x+45&&ball.y+7>b.y&&ball.y-7<b.y+16){
-          b.alive=false;ball.vy*=-1;score+=10;break;
-        }
+      for(const brick of bricks){if(brick.alive&&ball.x+7>brick.x&&ball.x-7<brick.x+45&&ball.y+7>brick.y&&ball.y-7<brick.y+16){brick.alive=false;ball.vy*=-1;score+=10;break}}
+      frames++;
+      if(bricks.every(brick=>!brick.alive)){ended=true;ui.status.textContent='WALL CLEARED · VERIFYING…';finishRun(true);return}
+      if(frames>=nextDropFrame){
+        bricks.filter(brick=>brick.alive).forEach(brick=>brick.y+=15);addBrickRow(12);nextDropFrame+=60;
+        if(bricks.some(brick=>brick.alive&&brick.y+16>=326)){ended=true;ui.status.textContent='THE BRICKS REACHED YOUR PADDLE · VERIFYING…';finishRun(false)}
       }
-      if(elapsed>=dropAt){
-        bricks.filter(b=>b.alive).forEach(b=>b.y+=15);
-        addBrickRow(12);
-        dropAt=elapsed+1000;
-        ui.status.textContent='DESCENDING WALL · ROW '+rowCount;
-        if(bricks.some(b=>b.alive&&b.y+16>=326)){
-          ended=true;ui.status.textContent='THE BRICKS REACHED YOUR PADDLE';arcadeFinish(ui,'breakout',score,false);
-        }
-      }
-      if(bricks.every(b=>!b.alive)&&!ended){ended=true;ui.status.textContent='WALL CLEARED';arcadeFinish(ui,'breakout',score,true)}
+    }
+    function draw(){
       ctx.fillStyle='#080b10';ctx.fillRect(0,0,640,360);
-      bricks.filter(b=>b.alive).forEach(b=>{ctx.fillStyle=b.color;ctx.fillRect(b.x,b.y,45,16);ctx.strokeStyle='#111';ctx.strokeRect(b.x,b.y,45,16)});
-      ctx.fillStyle='#e8ecf4';ctx.fillRect(paddle,338,80,9);
-      ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f8d88b';ctx.fill();
-      ui.score.textContent=String(score);arcadeFrame=requestAnimationFrame(tick);
+      bricks.filter(brick=>brick.alive).forEach(brick=>{ctx.fillStyle=brick.color;ctx.fillRect(brick.x,brick.y,45,16);ctx.strokeStyle='#111';ctx.strokeRect(brick.x,brick.y,45,16)});
+      ctx.fillStyle='#e8ecf4';ctx.fillRect(paddle,338,80,9);ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,Math.PI*2);ctx.fillStyle='#f8d88b';ctx.fill();
+      ui.score.textContent=String(score);if(ended)ctx.fillText('RUN OVER',272,195);
+    }
+    function tick(now){
+      if(ended||starting)return;if(last)accumulator+=Math.min(100,now-last);last=now;const stepMs=1000/60;let steps=0;
+      while(accumulator>=stepMs&&steps<6&&!ended){step();accumulator-=stepMs;steps++}
+      draw();if(!ended)arcadeFrame=requestAnimationFrame(tick);
     }
     arcadeKeys(key=>{if(['ArrowLeft','a','A'].includes(key))move=-1;if(['ArrowRight','d','D'].includes(key))move=1});
-    window.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))move=0},{signal:gameKeyController.signal});
-    ui.canvas.addEventListener('pointermove',e=>{const r=ui.canvas.getBoundingClientRect();paddle=Math.max(0,Math.min(560,(e.clientX-r.left)*640/r.width-40))});
-    mount.querySelectorAll('[data-breakout]').forEach(b=>{b.addEventListener('pointerdown',()=>move=b.dataset.breakout==='left'?-1:1);['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>move=0))});
+    window.addEventListener('keyup',event=>{if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(event.key))move=0},{signal:gameKeyController.signal});
+    mount.querySelectorAll('[data-breakout]').forEach(button=>{
+      button.addEventListener('pointerdown',event=>{event.preventDefault();move=button.dataset.breakout==='left'?-1:1});
+      ['pointerup','pointerleave','pointercancel'].forEach(type=>button.addEventListener(type,()=>move=0));
+    });
     ui.reset.addEventListener('click',fresh);fresh();
   }
+  
   function renderChess(mount) {
     const ui={};mount.innerHTML='<div class="game-status"><span>YOU VS ARCADE CPU</span><span id="chess-status">WHITE TO MOVE</span><span>STANDARD RULES</span></div><div class="game-stage chess-stage"><div id="chess-board" class="chess-board" role="grid" aria-label="Chess board"></div></div><div class="game-control-row"><span class="game-help">Select a piece and a highlighted legal square. Castling and en passant are enabled; pawns promote to queens.</span><button type="button" class="game-button" id="chess-reset">NEW GAME</button></div>';
     const host=mount.querySelector('#chess-board'),status=mount.querySelector('#chess-status');let board,turn,selected,legal,ep,castle,done=false,verifiedRun=null,moveLog=[],starting=false;
