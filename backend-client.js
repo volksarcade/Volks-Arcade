@@ -248,6 +248,12 @@
           event: '*', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}`
         }, onChange).subscribe();
       },
+      async startSnakeRun() {
+        return unwrap(await client.functions.invoke('arcade-snake', { body: { action:'start' } }));
+      },
+      async finishSnakeRun(runId, moves) {
+        return unwrap(await client.functions.invoke('arcade-snake', { body: { action:'finish', runId, moves } }));
+      },
       async recordArcadeEvent(gameKey, action) {
         return unwrap(await client.rpc('record_arcade_event', { p_game_key: gameKey, p_action: action }));
       },
