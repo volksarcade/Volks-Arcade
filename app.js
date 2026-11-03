@@ -520,7 +520,7 @@
     if (databaseMode) {
       if(!data.currentUserId)return false;
       const gameNames={snake:'Snake',ladders:'Snakes & Ladders',reaction:'Reaction Test',tetris:'Tetris',checkers:'Checkers',noughts:'Noughts & Crosses',chess:'Chess',pacman:'Pac-Man','space-invaders':'Space Invaders',dino:'Dino Run',pong:'Pong','flappy-bird':'Flappy Bird',breakout:'Breakout'};
-      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess','dino'];
+      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess','dino','flappy-bird'];
       const gameName=gameNames[game]||'This game';
       showToast(verifiedGames.includes(game)?`${gameName} did not award XP because this run was not verified.`:`${gameName} XP rewards are coming soon. This run did not award XP.`);
       return false;
@@ -1504,11 +1504,48 @@
     arcadeKeys(key=>{if(['ArrowUp','w','W'].includes(key))move=-1;if(['ArrowDown','s','S'].includes(key))move=1});window.addEventListener('keyup',e=>{if(['ArrowUp','ArrowDown','w','W','s','S'].includes(e.key))move=0},{signal:gameKeyController.signal});ui.canvas.addEventListener('pointermove',e=>{const r=ui.canvas.getBoundingClientRect();paddle=Math.max(0,Math.min(320,(e.clientY-r.top)*360/r.height-20))});mount.querySelectorAll('[data-pong]').forEach(b=>b.addEventListener('pointerdown',()=>move=b.dataset.pong==='up'?-1:1));mount.querySelectorAll('[data-pong]').forEach(b=>b.addEventListener('pointerup',()=>move=0));ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderFlappy(mount) {
-    const ui=arcadeCanvasShell(mount,'FLAPPY BIRD // SKY RUN',640,360,'Tap, Space, ↑ or FLAP to fly through the pipe gaps.','<button data-flap>FLAP</button>'),ctx=ui.ctx;let bird,pipes,score,ended,last,spawn,started=false;
-    function fresh(){bird={y:180,vy:0};pipes=[];score=0;ended=false;last=0;spawn=0;started=true;ui.status.textContent='FLAP TO START';arcadeFrame=requestAnimationFrame(tick)}
-    function flap(){if(ended)return;bird.vy=-7.2}
-    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now))/16;last=now;bird.vy+=.36*dt;bird.y+=bird.vy*dt;if(now-spawn>1450){pipes.push({x:660,top:50+Math.random()*170,passed:false});spawn=now}pipes.forEach(p=>p.x-=3.2*dt);pipes=pipes.filter(p=>p.x>-70);pipes.forEach(p=>{if(!p.passed&&p.x+52<55){p.passed=true;score++;}if(p.x<75&&p.x+52>38&&(bird.y< p.top||bird.y>p.top+128))ended=true});if(bird.y<0||bird.y>360)ended=true;if(ended){arcadeFinish(ui,'flappy-bird',score,false)}ctx.fillStyle='#091018';ctx.fillRect(0,0,640,360);ctx.fillStyle='#14263c';for(let i=0;i<12;i++)ctx.fillRect((i*83-(now/40)%83),40+(i*47)%170,45,2);ctx.fillStyle='#6bd283';pipes.forEach(p=>{ctx.fillRect(p.x,0,52,p.top);ctx.fillRect(p.x-5,p.top-14,62,14);ctx.fillRect(p.x,p.top+128,52,360);ctx.fillRect(p.x-5,p.top+128,62,14)});ctx.fillStyle='#f7d76a';ctx.beginPath();ctx.ellipse(58,bird.y,15,11,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff804b';ctx.beginPath();ctx.moveTo(70,bird.y);ctx.lineTo(84,bird.y+4);ctx.lineTo(70,bird.y+8);ctx.fill();ctx.fillStyle='#fff';ctx.font='22px monospace';ctx.fillText('SCORE '+score,18,30);ui.score.textContent=String(score);if(ended)ctx.fillText('GAME OVER',270,190);arcadeFrame=requestAnimationFrame(tick)}
-    arcadeKeys(key=>{if(key===' '||key==='ArrowUp'||key==='w'||key==='W')flap()});ui.canvas.addEventListener('pointerdown',flap);mount.querySelector('[data-flap]').addEventListener('click',flap);ui.reset.addEventListener('click',fresh);fresh();
+    const ui=arcadeCanvasShell(mount,'FLAPPY BIRD // VERIFIED FLIGHT',640,360,'Tap, Space, ↑ or FLAP. Server replay verifies every flap before XP and monthly score are saved.','<button data-flap>FLAP</button>'),ctx=ui.ctx;
+    let bird,pipes,score,ended,last,accumulator,frames,seedState,verifiedRun,flapQueued,flapFrames,lastFlapFrame=-99,nextPipe,starting=false,submitting=false;
+    function random(){seedState^=seedState<<13;seedState^=seedState>>>17;seedState^=seedState<<5;return (seedState>>>0)/4294967296}
+    function fresh(){
+      if(starting)return;starting=true;cancelAnimationFrame(arcadeFrame);bird={y:180,vy:0};pipes=[];score=0;ended=false;last=0;accumulator=0;frames=0;verifiedRun=null;flapQueued=false;flapFrames=[];lastFlapFrame=-99;submitting=false;nextPipe=87;
+      ui.status.textContent=databaseMode&&data.currentUserId?'CONNECTING TO VERIFIED RUN…':'LOCAL RUN · XP NEEDS SIGN-IN';
+      const prepare=async()=>{let seed=0;
+        if(databaseMode&&data.currentUserId){try{const backend=await window.VABackendReady;verifiedRun=await backend.startVerifiedBoardRun('flappy-bird');seed=Number(verifiedRun.seed)>>>0}
+          catch(error){showToast(error.message||'Could not start a verified Flappy Bird run. You can still play; this run will not award XP.')}}
+        if(!seed){const bytes=new Uint32Array(1);if(window.crypto?.getRandomValues)window.crypto.getRandomValues(bytes);seed=bytes[0]||Math.floor(Math.random()*4294967295)||1}
+        seedState=seed>>>0;ui.status.textContent=verifiedRun?'VERIFIED RUN · FLY':'LOCAL RUN · XP UNAVAILABLE';starting=false;arcadeFrame=requestAnimationFrame(tick)};
+      void prepare();
+    }
+    function flap(){if(!ended&&!starting)flapQueued=true}
+    function finishRun(){
+      if(submitting)return;submitting=true;ui.status.textContent='RUN OVER · CHECKING RESULT…';
+      if(!databaseMode||!data.currentUserId||!verifiedRun){ui.status.textContent='RUN OVER · NO VERIFIED XP';showToast('This Flappy Bird run was not server-verified, so no XP was awarded.');return}
+      void (async()=>{try{const backend=await window.VABackendReady;const result=await backend.finishVerifiedBoardRun('flappy-bird',verifiedRun.runId,{frames:frames,flapFrames:flapFrames});
+        ui.status.textContent=result.xp_reward?'VERIFIED · +'+result.xp_reward+' XP':'VERIFIED · NO XP THIS RUN';showToast(result.xp_reward?'+'+result.xp_reward+' XP · Verified Flappy Bird run':'Flappy Bird verified; this run did not award XP.');
+        await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards()}catch(error){ui.status.textContent='RUN OVER · RESULT NOT VERIFIED';showToast(error.message||'Flappy Bird result could not be verified. No XP was awarded.')}})();
+    }
+    function step(){
+      const frame=frames;
+      if(flapQueued&&frame-lastFlapFrame>=8){bird.vy=-7.2;flapFrames.push(frame);lastFlapFrame=frame}
+      flapQueued=false;bird.vy+=0.36;bird.y+=bird.vy;
+      if(frame===nextPipe){pipes.push({x:660,top:50+random()*170,passed:false});nextPipe+=87}
+      for(const pipe of pipes)pipe.x-=3.2;
+      for(const pipe of pipes)if(!pipe.passed&&pipe.x+52<55){pipe.passed=true;score++}
+      const hitPipe=pipes.some(pipe=>pipe.x<75&&pipe.x+52>38&&(bird.y<pipe.top||bird.y>pipe.top+128));
+      const hitEdge=bird.y<0||bird.y>360;
+      frames=frame+1;if(hitPipe||hitEdge){ended=true;finishRun()}
+    }
+    function draw(){
+      ctx.fillStyle='#091018';ctx.fillRect(0,0,640,360);ctx.fillStyle='#14263c';for(let i=0;i<12;i++)ctx.fillRect((i*83-(frames/2)%83),40+(i*47)%170,45,2);
+      ctx.fillStyle='#6bd283';pipes.forEach(pipe=>{ctx.fillRect(pipe.x,0,52,pipe.top);ctx.fillRect(pipe.x-5,pipe.top-14,62,14);ctx.fillRect(pipe.x,pipe.top+128,52,360);ctx.fillRect(pipe.x-5,pipe.top+128,62,14)});
+      ctx.fillStyle='#f7d76a';ctx.beginPath();ctx.ellipse(58,bird.y,15,11,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff804b';ctx.beginPath();ctx.moveTo(70,bird.y);ctx.lineTo(84,bird.y+4);ctx.lineTo(70,bird.y+8);ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='22px monospace';ctx.fillText('PIPES '+score,18,30);ui.score.textContent=String(score);if(ended)ctx.fillText('GAME OVER',270,190)
+    }
+    function tick(now){if(ended||starting)return;if(last)accumulator+=Math.min(100,now-last);last=now;const stepMs=1000/60;let steps=0;
+      while(accumulator>=stepMs&&steps<6&&!ended){step();accumulator-=stepMs;steps++}draw();if(!ended)arcadeFrame=requestAnimationFrame(tick)}
+    arcadeKeys(key=>{if(key===' '||key==='ArrowUp'||key==='w'||key==='W')flap()});
+    ui.canvas.addEventListener('pointerdown',flap);mount.querySelector('[data-flap]').addEventListener('click',flap);ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderBreakout(mount) {
     const ui=arcadeCanvasShell(mount,'BREAKOUT // DESCENDING BRICK WALL',640,360,'Break the top wall with the ball. Each second the brick field moves down and a full new row forms at the top.','<button data-breakout="left">←</button><button data-breakout="right">→</button>'),ctx=ui.ctx;
