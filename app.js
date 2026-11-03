@@ -1250,7 +1250,7 @@
       const game=host.dataset.boardRows,rows=monthlyArcadeRows.filter(row=>row.game_key===game);
       if(databaseMode){host.innerHTML='<div class="empty-state">Verified monthly scores and rankings are coming soon. Your game bests remain personal.</div>';return;}
       if(!data.currentUserId){host.innerHTML='<div class="empty-state">Sign in to view this month’s leaderboard.</div>';return;}
-      host.innerHTML=rows.length?'<ol class="monthly-board-list">'+rows.map(row=>'<li><span class="monthly-board-place">#'+Number(row.place)+'</span>'+(row.avatar_url?'<img src="'+esc(row.avatar_url)+'" alt="">':'<span class="monthly-board-avatar">'+esc((row.username||'P')[0].toUpperCase())+'</span>')+'<button type="button" data-view-profile="'+esc(row.user_id)+'">'+esc(row.username)+'</button><small>LVL '+Number(row.player_level||1)+'</small><b>'+num(row.score)+'</b></li>').join('')+'</ol>':'<div class="empty-state">No scores recorded this month yet. Play a run to claim the first spot.</div>';
+      host.innerHTML=rows.length?'<ol class="monthly-board-list">'+rows.map(row=>'<li><span class="monthly-board-place">#'+Number(row.place)+'</span>'+(row.avatar_url?'<img src="'+esc(row.avatar_url)+'" alt="">':'<span class="monthly-board-avatar">'+esc((row.username||'P')[0].toUpperCase())+'</span>')+'<button type="button" data-view-profile="'+esc(row.user_id)+'">'+esc(row.username)+'</button><small>LVL '+Number(row.player_level||1)+'</small><b>'+num(row.score)+'</b></li>').join('')+'</ol>':'<div class="empty-state">Monthly ranked scores are coming soon while fair-play result checks are prepared.</div>';
     });
   }
   async function refreshMonthlyArcadeBoards(){monthlyArcadeRows=[];renderMonthlyArcadeBoards();}
