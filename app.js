@@ -519,7 +519,10 @@
     const game=source==='noughts-draw'?'noughts':source,progression=Math.max(1,Math.min(50,Math.floor(Number(resultOptions.progression)||1))),won=Boolean(resultOptions.won);
     if (databaseMode) {
       if(!data.currentUserId)return false;
-      showToast('Verified game-completion XP is coming soon. Games remain playable while server-side result checks are added.');
+      const gameNames={snake:'Snake',ladders:'Snakes & Ladders',reaction:'Reaction Test',tetris:'Tetris',checkers:'Checkers',noughts:'Noughts & Crosses',chess:'Chess',pacman:'Pac-Man','space-invaders':'Space Invaders',dino:'Dino Run',pong:'Pong','flappy-bird':'Flappy Bird',breakout:'Breakout'};
+      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess'];
+      const gameName=gameNames[game]||'This game';
+      showToast(verifiedGames.includes(game)?`${gameName} did not award XP because this run was not verified.`:`${gameName} XP rewards are coming soon. This run did not award XP.`);
       return false;
     }
     const key = `${dayKey}:${source}`;
@@ -1331,7 +1334,7 @@
     ctx.fillStyle='#101218';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#555a65';ctx.font='11px DM Mono';ctx.textAlign='center';ctx.fillText('Press START RUN to play',canvas.width/2,canvas.height/2);ctx.strokeStyle='rgba(255,255,255,.035)';for(let x=0;x<=cols;x++){ctx.beginPath();ctx.moveTo(x*cell,0);ctx.lineTo(x*cell,canvas.height);ctx.stroke()}for(let y=0;y<=rows;y++){ctx.beginPath();ctx.moveTo(0,y*cell);ctx.lineTo(canvas.width,y*cell);ctx.stroke()}
   }
   function renderReaction(mount) {
-    mount.innerHTML=`<div class="game-status"><span>PERSONAL BEST <b>${data.reactionBest?`${data.reactionBest} ms`:'—'}</b></span><span>DAILY REWARD <b>+20 XP</b></span><span id="reaction-round">ROUND READY</span></div><div class="game-stage"><button class="reaction-stage" id="reaction-stage"><span>Tap to begin</span><small>Wait for the green signal.</small></button></div><div class="game-control-row"><span class="game-help">Don't click early. False starts reset the round.</span><span class="dice-result" id="reaction-result"></span></div>`;
+    mount.innerHTML=`<div class="game-status"><span>PERSONAL BEST <b>${data.reactionBest?`${data.reactionBest} ms`:'—'}</b></span><span>RUN REWARD <b>${databaseMode?'COMING SOON':'+20 XP'}</b></span><span id="reaction-round">ROUND READY</span></div><div class="game-stage"><button class="reaction-stage" id="reaction-stage"><span>Tap to begin</span><small>Wait for the green signal.</small></button></div><div class="game-control-row"><span class="game-help">Don't click early. False starts reset the round.</span><span class="dice-result" id="reaction-result"></span></div>`;
     const stage=mount.querySelector('#reaction-stage'),result=mount.querySelector('#reaction-result'),round=mount.querySelector('#reaction-round');
     stage.addEventListener('click',()=>{
       if(stage.classList.contains('waiting')){clearTimeout(reactionTimer);stage.classList.remove('waiting');stage.querySelector('span').textContent='Too soon!';stage.querySelector('small').textContent='Wait for green, then tap.';round.textContent='FALSE START';return}
