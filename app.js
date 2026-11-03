@@ -506,7 +506,7 @@
     const faves = (data.profile.favoriteGames || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 5);
     document.getElementById('favorite-games').innerHTML = (faves.length ? faves : ['Add favourite games']).map(g => `<span>${esc(g)}</span>`).join('');
   }
-  const arcadeProgressionGames=['tetris','space-invaders'];
+  const arcadeProgressionGames=['tetris','space-invaders','dino'];
   const arcadeWinningGames=['ladders','checkers','chess','pacman','pong','breakout'];
   function arcadeRewardPreview(base,game,progression=1,won=false){
     const count=Math.max(1,Math.min(50,Math.floor(Number(progression)||1)));
@@ -520,7 +520,7 @@
     if (databaseMode) {
       if(!data.currentUserId)return false;
       const gameNames={snake:'Snake',ladders:'Snakes & Ladders',reaction:'Reaction Test',tetris:'Tetris',checkers:'Checkers',noughts:'Noughts & Crosses',chess:'Chess',pacman:'Pac-Man','space-invaders':'Space Invaders',dino:'Dino Run',pong:'Pong','flappy-bird':'Flappy Bird',breakout:'Breakout'};
-      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess'];
+      const verifiedGames=['snake','ladders','noughts','tetris','checkers','chess','dino'];
       const gameName=gameNames[game]||'This game';
       showToast(verifiedGames.includes(game)?`${gameName} did not award XP because this run was not verified.`:`${gameName} XP rewards are coming soon. This run did not award XP.`);
       return false;
@@ -1463,11 +1463,39 @@
     arcadeKeys(key=>{if(['ArrowLeft','a','A'].includes(key))move=-1;if(['ArrowRight','d','D'].includes(key))move=1;if(key===' ')fire=true});window.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))move=0;if(e.key===' ')fire=false},{signal:gameKeyController.signal});mount.querySelectorAll('[data-invader]').forEach(b=>{b.addEventListener('pointerdown',()=>{if(b.dataset.invader==='fire')fire=true;else move=b.dataset.invader==='left'?-1:1});['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>{if(b.dataset.invader==='fire')fire=false;else move=0}))});mount.querySelectorAll('[data-invader]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.invader==='fire')shots.push({x:player.x,y:350});else player.x=Math.max(20,Math.min(620,player.x+(b.dataset.invader==='left'?-46:46)))}));ui.reset.addEventListener('click',fresh);fresh();
   }
     function renderDino(mount) {
-    const ui=arcadeCanvasShell(mount,'DINO RUN // DESERT DASH',640,300,'Jump over the barriers using Space, ↑, tap or JUMP. Stay alive as speed increases.','<button data-dino-jump>JUMP</button>'),ctx=ui.ctx;let dino,obstacles,score,speed,ended,last,jumping=false;
-    function fresh(){dino={y:230,vy:0};obstacles=[];score=0;speed=5;ended=false;last=0;jumping=false;ui.status.textContent='RUNNING';arcadeFrame=requestAnimationFrame(tick)}
-    function jump(){if(!ended&&dino.y>=229){dino.vy=-12;jumping=true}}
-    function tick(now){if(ended)return;const dt=Math.min(32,now-(last||now))/16;last=now;score+=dt;speed=5+score/5000;if(Math.random()<.018*dt)obstacles.push({x:650,w:18+Math.random()*18,h:26+Math.random()*22});dino.vy+=.62*dt;dino.y=Math.min(230,dino.y+dino.vy*dt);if(dino.y>=230){dino.vy=0;jumping=false}obstacles.forEach(o=>o.x-=speed*dt);obstacles=obstacles.filter(o=>o.x>-40);if(obstacles.some(o=>o.x<82&&o.x+o.w>50&&dino.y+36>260-o.h)){ended=true;arcadeFinish(ui,'dino',Math.floor(score),false)}ctx.fillStyle='#10151c';ctx.fillRect(0,0,640,300);ctx.fillStyle='#27323d';ctx.fillRect(0,260,640,40);ctx.strokeStyle='#75828b';ctx.beginPath();ctx.moveTo(0,260);ctx.lineTo(640,260);ctx.stroke();ctx.fillStyle='#65dce0';ctx.fillRect(50,dino.y,32,30);ctx.fillRect(72,dino.y-11,17,18);ctx.fillStyle='#081013';ctx.fillRect(82,dino.y-5,3,3);ctx.fillStyle='#6bd283';obstacles.forEach(o=>{ctx.fillRect(o.x,260-o.h,o.w,o.h);ctx.fillRect(o.x-6,260-o.h+7,6,6)});ctx.fillStyle='#e5d7ad';ctx.font='14px monospace';ctx.fillText('DISTANCE '+Math.floor(score/10),470,25);ui.score.textContent=String(Math.floor(score/10));arcadeFrame=requestAnimationFrame(tick)}
-    arcadeKeys(key=>{if(key===' '||key==='ArrowUp'||key==='w'||key==='W')jump()});mount.querySelector('[data-dino-jump]').addEventListener('click',jump);ui.reset.addEventListener('click',fresh);fresh();
+    const ui=arcadeCanvasShell(mount,'DINO RUN // VERIFIED DISTANCE',640,300,'Jump with Space, ↑, canvas tap or JUMP. The server replays the seeded run before XP and monthly score are saved.','<button data-dino-jump>JUMP</button>'),ctx=ui.ctx;
+    let dino,obstacles,frames,nextObstacle,ended,last,accumulator,seedState,verifiedRun,jumpQueued,jumpFrames,starting=false,submitting=false;
+    function random(){seedState^=seedState<<13;seedState^=seedState>>>17;seedState^=seedState<<5;return (seedState>>>0)/4294967296}
+    function fresh(){
+      if(starting)return;
+      starting=true;cancelAnimationFrame(arcadeFrame);dino={y:230,vy:0};obstacles=[];frames=0;ended=false;last=0;accumulator=0;jumpQueued=false;jumpFrames=[];verifiedRun=null;submitting=false;
+      ui.status.textContent=databaseMode&&data.currentUserId?'CONNECTING TO VERIFIED RUN…':'LOCAL RUN · XP NEEDS SIGN-IN';
+      const prepare=async()=>{let seed=0;
+        if(databaseMode&&data.currentUserId){try{const backend=await window.VABackendReady;verifiedRun=await backend.startVerifiedBoardRun('dino');seed=Number(verifiedRun.seed)>>>0}catch(error){showToast(error.message||'Could not start a verified Dino Run. You can still play; this run will not award XP.')}}
+        if(!seed){const bytes=new Uint32Array(1);if(window.crypto?.getRandomValues)window.crypto.getRandomValues(bytes);seed=bytes[0]||Math.floor(Math.random()*4294967295)||1}
+        seedState=seed>>>0;nextObstacle=55+Math.floor(random()*36);ui.status.textContent=verifiedRun?'VERIFIED RUN · SURVIVE':'LOCAL RUN · XP UNAVAILABLE';starting=false;arcadeFrame=requestAnimationFrame(tick)};
+      void prepare();
+    }
+    function jump(){if(!ended&&!starting)jumpQueued=true}
+    function finishRun(){if(submitting)return;submitting=true;ui.status.textContent='RUN OVER · CHECKING RESULT…';
+      if(!databaseMode||!data.currentUserId||!verifiedRun){ui.status.textContent='RUN OVER · NO VERIFIED XP';showToast('This Dino Run was not server-verified, so no XP was awarded.');return}
+      void (async()=>{try{const backend=await window.VABackendReady;const result=await backend.finishVerifiedBoardRun('dino',verifiedRun.runId,{frames:frames,jumpFrames:jumpFrames});
+        ui.status.textContent=result.xp_reward?'VERIFIED · +'+result.xp_reward+' XP':'VERIFIED · NO XP THIS RUN';showToast(result.xp_reward?'+'+result.xp_reward+' XP · Verified Dino Run':'Dino Run verified; this run did not award XP.');
+        await refreshBackendWallet(backend,false);await refreshMonthlyArcadeBoards()}catch(error){ui.status.textContent='RUN OVER · RESULT NOT VERIFIED';showToast(error.message||'Dino Run result could not be verified. No XP was awarded.')}})();
+    }
+    function step(){const currentFrame=frames;if(jumpQueued&&dino.y>=229){dino.vy=-12;jumpFrames.push(currentFrame)}jumpQueued=false;
+      if(currentFrame===nextObstacle){obstacles.push({x:650,w:18+random()*18,h:26+random()*22});nextObstacle=currentFrame+100+Math.floor(random()*66)}
+      const score=currentFrame+1,speed=5+score/5000;dino.vy+=0.62;dino.y=Math.min(230,dino.y+dino.vy);if(dino.y>=230)dino.vy=0;
+      for(const obstacle of obstacles)obstacle.x-=speed;obstacles=obstacles.filter(obstacle=>obstacle.x>-40);frames=currentFrame+1;
+      if(obstacles.some(obstacle=>obstacle.x<82&&obstacle.x+obstacle.w>50&&dino.y+36>260-obstacle.h)){ended=true;finishRun()}
+    }
+    function draw(){ctx.fillStyle='#10151c';ctx.fillRect(0,0,640,300);ctx.fillStyle='#27323d';ctx.fillRect(0,260,640,40);ctx.strokeStyle='#75828b';ctx.beginPath();ctx.moveTo(0,260);ctx.lineTo(640,260);ctx.stroke();
+      ctx.fillStyle='#65dce0';ctx.fillRect(50,dino.y,32,30);ctx.fillRect(72,dino.y-11,17,18);ctx.fillStyle='#081013';ctx.fillRect(82,dino.y-5,3,3);
+      ctx.fillStyle='#6bd283';obstacles.forEach(obstacle=>{ctx.fillRect(obstacle.x,260-obstacle.h,obstacle.w,obstacle.h);ctx.fillRect(obstacle.x-6,260-obstacle.h+7,6,6)});
+      ctx.fillStyle='#e5d7ad';ctx.font='14px monospace';ctx.fillText('DISTANCE '+Math.floor(frames/10),470,25);ui.score.textContent=String(Math.floor(frames/10))}
+    function tick(now){if(ended||starting)return;if(last)accumulator+=Math.min(100,now-last);last=now;const stepMs=1000/60;let steps=0;
+      while(accumulator>=stepMs&&steps<6&&!ended){step();accumulator-=stepMs;steps++}draw();if(!ended)arcadeFrame=requestAnimationFrame(tick)}
+    arcadeKeys(key=>{if(key===' '||key==='ArrowUp'||key==='w'||key==='W')jump()});mount.querySelector('[data-dino-jump]').addEventListener('click',jump);ui.canvas.addEventListener('pointerdown',jump);ui.reset.addEventListener('click',fresh);fresh();
   }
   function renderPong(mount) {
     const ui=arcadeCanvasShell(mount,'PONG // VS ARCADE CPU',640,360,'Move with W/S, ↑/↓, mouse or touch. First to 7 points wins.','<button data-pong="up">↑</button><button data-pong="down">↓</button>'),ctx=ui.ctx;let paddle,ai,ball,score,aiScore,ended,last,move=0;
