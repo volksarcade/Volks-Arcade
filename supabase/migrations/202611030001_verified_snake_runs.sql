@@ -90,3 +90,16 @@ $function$;
 
 revoke all on function public.record_verified_snake_run(uuid, integer, integer) from public, anon, authenticated;
 grant execute on function public.record_verified_snake_run(uuid, integer, integer) to service_role;
+
+create or replace function public.purge_expired_chat_data()
+returns void
+language plpgsql
+security definer
+set search_path = 'pg_catalog', 'public'
+as $cleanup$
+begin
+  delete from public.chat_messages where created_at < now() - interval '30 days';
+  delete from public.notifications where created_at < now() - interval '30 days';
+  delete from public.arcade_snake_runs where started_at < now() - interval '30 days';
+end;
+$cleanup$;
