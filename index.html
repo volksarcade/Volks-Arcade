@@ -48,7 +48,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20261102-mobile-game-spacing-2" />
+  <link rel="stylesheet" href="styles.css?v=20261104-fourthwall-merch" />
 </head>
 <body>
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
@@ -182,7 +182,14 @@
 
         <section class="page" id="page-store">
           <div class="page-intro"><span class="eyebrow"><i></i> VOLKS ARCADE // STORE</span><h1>Make it <em>yours.</em></h1><p>Earn VA Coins through play and XP exchange, then customise your player identity.</p></div>
-          <section class="merch-coming panel-card"><div><span class="eyebrow">VOLKS ARCADE GOODS</span><h2>Merch drop <em>coming soon.</em></h2><p>Wear the signal. Official Volks Arcade merch is being prepared.</p></div><span class="merch-coming-stamp">COMING<br>SOON</span></section>
+          <section class="merch-shop panel-card" aria-labelledby="merch-title">
+            <div class="merch-shop-head"><div><span class="eyebrow">VOLKS ARCADE GOODS · FOURTHWALL</span><h2 id="merch-title">Wear the <em>signal.</em></h2><p>Official VOLKS ARCADE gear, printed to order.</p></div><span class="merch-live-label">AVAILABLE NOW</span></div>
+            <div class="merch-product-grid">
+              <article class="merch-product-card"><div class="merch-product-mark" aria-hidden="true"><span>VA</span><small>VOLKS ARCADE</small></div><div class="merch-product-copy"><span class="eyebrow">HEAVYWEIGHT · BLACK</span><h3>VA Signal Hoodie</h3><p>Soft heavyweight hoodie with the VA emblem on the upper-right chest and a clean back.</p></div><div class="merch-product-buy"><b>$34.99 <small>USD</small></b><a class="button button-primary compact" data-public-merch-link href="https://volkarcade-shop.fourthwall.com/products/volks-arcade-va-signal-hoodie" target="_blank" rel="noopener noreferrer">SHOP HOODIE ↗</a></div></article>
+              <article class="merch-product-card"><div class="merch-product-mark tee" aria-hidden="true"><span>VA</span><small>VOLKS ARCADE</small></div><div class="merch-product-copy"><span class="eyebrow">SIGNAL · EVERYDAY WEAR</span><h3>Signal Heavyweight Tee</h3><p>Everyday heavyweight tee featuring the VOLKS ARCADE signal on the front.</p></div><div class="merch-product-buy"><b>$22.99 <small>USD</small></b><a class="button button-primary compact" data-public-merch-link href="https://volkarcade-shop.fourthwall.com/products/volks-arcade-signal-heavyweight-tee" target="_blank" rel="noopener noreferrer">SHOP T-SHIRT ↗</a></div></article>
+            </div>
+            <p class="merch-shop-note">Checkout and fulfilment are handled by Fourthwall. Shipping is calculated at checkout; prices are shown in USD.</p>
+          </section>
           <div class="store-economy-grid"><article class="panel-card store-balance-card"><span class="eyebrow">YOUR PRIVATE WALLET</span><div class="store-balances"><span><b id="store-coin-balance">0</b><small>VA COINS</small></span><span><b id="store-spendable-xp">0</b><small>SPENDABLE XP</small></span></div><small class="demo-note">Your balances are saved to your account and are visible only to you.</small></article><article class="panel-card xp-exchange-card"><div class="card-title-row"><div><span class="eyebrow">XP → VA COINS</span><h3>Coin exchange</h3></div><span class="preview-chip">LIVE</span></div><p class="demo-note">Spendable XP exchanges are processed by the server. Your global level and lifetime XP do not decrease.</p><div class="exchange-options"><button type="button" data-exchange-xp="250" data-exchange-coins="50"><b>250 XP</b><span>→ 50 VA Coins</span></button><button type="button" data-exchange-xp="1000" data-exchange-coins="225"><b>1,000 XP</b><span>→ 225 VA Coins</span></button><button type="button" data-exchange-xp="2500" data-exchange-coins="600"><b>2,500 XP</b><span>→ 600 VA Coins</span></button></div></article></div>
           <article class="panel-card coin-history-card" style="margin:18px 0"><div class="card-title-row"><div><span class="eyebrow">PRIVATE ACCOUNT RECORD</span><h3>VA Coin activity</h3></div><span class="preview-chip">LATEST 12</span></div><div id="store-coin-history"><p class="demo-note">Loading wallet activity…</p></div></article>
           <section class="coin-packs"><div class="section-heading"><div><span class="eyebrow">OPTIONAL TOP-UP</span><h2>Buy VA <span>Coins</span></h2></div><span class="muted-label" id="coin-checkout-badge">PAYPAL SETUP REQUIRED</span></div><div class="coin-pack-grid"><article><span class="eyebrow">STARTER</span><h3>100 VA Coins</h3><b>£0.99</b><button type="button" class="button button-secondary" data-coin-pack="starter">SETUP REQUIRED</button></article><article class="coin-pack-featured"><span class="eyebrow">MOST POPULAR</span><h3>550 VA Coins</h3><b>£4.99</b><button type="button" class="button button-secondary" data-coin-pack="popular">SETUP REQUIRED</button></article><article><span class="eyebrow">ARCADE BUNDLE</span><h3>1,200 VA Coins</h3><b>£9.99</b><button type="button" class="button button-secondary" data-coin-pack="bundle">SETUP REQUIRED</button></article></div><p class="demo-note" id="coin-checkout-status">Secure checkout is being connected. No payment is taken until PayPal confirms the payment and the server credits your account.</p></section>
@@ -212,7 +219,7 @@
   <div class="game-backdrop" id="game-backdrop" aria-hidden="true"><section class="game-modal" role="dialog" aria-modal="true" aria-labelledby="game-title"><div class="game-modal-top"><div><span class="eyebrow" id="game-mode-label">ARCADE GAME</span><h2 id="game-title">Snake</h2></div><button class="close-button" id="game-close" aria-label="Close game">×</button></div><div id="game-mount"></div></section></div>
   <script src="backend-config.js"></script>
   <script src="backend-client.js?v=20261021-paypal-coins1"></script>
-  <script src="app.js?v=20261103-long-result-messages"></script>
+  <script src="app.js?v=20261104-public-merch-links"></script>
 </body>
 </html>
 
