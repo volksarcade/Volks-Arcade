@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://volksarcade.github.io/Volks-Arcade/sitemap.xml
