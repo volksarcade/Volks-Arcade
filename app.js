@@ -600,7 +600,7 @@
   }
 
   document.addEventListener('click', async e => {
-    if (!hasAccount() && e.target.closest('#page-store button, #page-store input, #page-store select, #page-store a, #page-store [role="button"]')) {
+    if (!hasAccount() && e.target.closest('#page-store button, #page-store input, #page-store select, #page-store a, #page-store [role="button"]') && !e.target.closest('#page-store a[data-public-merch-link]')) {
       e.preventDefault(); openModal('auth','signup'); showToast('Sign up or sign in to use VA Store features.'); return;
     }
     const communityTab=e.target.closest('[data-community-tab]');if(communityTab){document.querySelectorAll('[data-community-tab]').forEach(tab=>tab.classList.toggle('active',tab===communityTab));document.querySelectorAll('[data-community-panel]').forEach(panel=>panel.hidden=panel.dataset.communityPanel!==communityTab.dataset.communityTab);if(communityTab.dataset.communityTab==='events')renderChallenges();return;}
